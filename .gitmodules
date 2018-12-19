@@ -1,0 +1,3 @@
+[submodule "lib/lclass"]
+	path = lib/lclass
+	url = https://github.com/chc4/lclass.git
