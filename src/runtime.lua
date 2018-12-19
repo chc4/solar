@@ -7,9 +7,12 @@ function runtime.eval(context, val)
     assert(val.type == "ast")
     local tab= ({
         ["let"] = function()
-            local new_con = context.v:add(val.value)
+            local e = runtime.eval(context,val.value)
+            local new_con = context.v:add(e)
+            -- i think this is wrong - should at least be types.val(e)
+            -- and then always fetching via axis
             local new_con_ty =
-                types.cell(types.face(val.bind,val.value),context.t)
+                types.cell(types.face(val.bind,e),context.t)
             return runtime.eval(types.vase(new_con,new_con_ty), val.rest)
         end,
         ["if"] = function()
@@ -35,8 +38,9 @@ function runtime.eval(context, val)
             table.print(ty)
             --assert(type(axis) == "number" and ty.type == "types")
             print("found "..val.bind.." at "..axis)
-            if ty.type == "ast" then
-                return runtime.eval(context, ty)
+            if ty.type == "ast" or ty.type == "value" then
+                return ty
+                --return runtime.eval(context, ty)
             elseif ty.type == "types" then
                 -- fetch via axis
                 error('not implemented')
