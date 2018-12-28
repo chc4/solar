@@ -5,17 +5,32 @@ local parser = require "src/parser"
 local types = require "src/types"
 local rt = require "src/runtime"
 
+function testcase_one()
+    return ast.let {
+        bind = "a",
+        value = ast["if"] {
+            cond = ast.val {value=1},
+            if_true = ast.val {value=2},
+            if_false = ast.val {value=3}
+        },
+        rest = ast.fetch {bind="a"}
+    }
+end
+
+function testcase_two()
+    return ast.let {
+        bind = "a",
+        value = ast.val { value = 1 },
+        rest = ast.fetch { bind = "a" }
+    }
+end
+
 local input = io.open("test.sol","r"):read("*a")
 
-local tree = ast.let("a", ast["if"] (
-        ast.val(2),
-        ast.val(2),
-        ast.val(3)
-    ),
-    ast.fetch("a")
-)
+local tree = testcase_one()
+tree = ast.open(tree)
 
-local context_vase = types.vase(context.new(),types.void())
+local context_vase = types.vase(context.new(),types.atom {value=0, aura = "z", example = 0})
 local ty = types.type_ast(context_vase,tree)
 print("RET TYPE")
 table.print(ty)

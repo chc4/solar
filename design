@@ -1,0 +1,58 @@
+solar - i saw the summer sun in the fullness of its glory
+
+i wrote a thing about how Lua is just Hoon but with by-reference and mutable variables
+i really like this framing
+i've wanted to make "hoon but different" for a while, so instead of using its weird
+syntax use lua-ish syntax
+
+- purely functional
+- first-class contexts (getfenv(0), basically, with no upvalues/locals)
+- statically strongly typed
+- functions are objects are cores - balls of state with computed properties, closed over an environment. arguments are implemented as variables closed over and set before computing the "body" property.
+- ocaml has "object types" which are structurally typed records of methods
+    - can we have a function that takes _[ add = fn(@ *@) ] and destructure objects
+      at the callsite? does this play well with captures?
+    - casting wouldn't be "view only", but constructing new values:
+        foo = [ a = 1 b = 2 c = 3 ] bar = [ a = 3 c = 4 ] `_bar`foo
+        now the cast has to allocate. is this ok? "new" casting method, like ^-?
+        - does this let you do Monad interfaces?
+        - cons cores don't work
+    - function overloading: instead of mul calling add that needs @ -> @, have
+        a way to register how to construct an "atom core"? rust's Into/From.
+        would be very "magic", ruin structural subtyping. just have a function that
+        wraps a value in a core, call manually.
+    - really due to broken symmetry of nouns/cells. cells should be last resort
+      for state machines/interfaces, but "add" and "mul" are useful interfaces too
+    - have a method for (mostly) type-safe replacing arms!!! impossible to replace
+      ++add with your own impl. we have type information for the entire context
+      by definition, should be able to rewrite all closed cores with new impl
+      - how does this work with core co/contravariance? doesn't, tbh.
+        - can cheat and just redefine at VM level for methods,
+          same "result not implementation" as nock
+        - the dream is to be able to mock just via context replacement, which
+          doesnt quite work in hoon. you can't extend open:ut without
+          copy-pasting all arms. would this help? retypecheck resulting core?
+
+roadmap:
+- dumb type checker (how dumb?)
+- dumb nock compiler
+- finish up nock interpreter - i think i only need macros?
+- make type checker smarter
+- make nock compiler smarter
+- selfhost
+- jit and other stuff ill never get to
+
+
+problems:
+- think about ast -> type -> nock more
+- more ast nodes for reductions? let -> within?
+- cores recursive typechecking - hold?
+- generics and function specialization. collections not being able to use the same function names is pretty bad. snag vs get:in vs get:by. structural subtyping means that there's no clear pick for what impl to even choose.
+- monads and hkt. continuations with no call stack.
+
+
+hey kids wanna make a compiler lol
+ended up dumping rust code ('''tulpa''') and rewrote everything in lua in like 1/3rd the time with 1/3 the length
+making a compiler in lua sounds like one of those things that makes you say "dont do that you moron" but lets do it anyways
+there's llvm lua bindings! they looks surprisingly good! wtf! it even has api support for jit!
+i forgot how annoying lpeg was though so ill write the parser later - just hardcode asts for now

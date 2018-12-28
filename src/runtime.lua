@@ -3,17 +3,39 @@ require "src/types"
 local runtime = {}
 
 function runtime.eval(context, val)
-    assert(context.type == "vase")
+    expect_type(context,"context","vase")
     assert(val.type == "ast")
     local tab= ({
         ["let"] = function()
             local e = runtime.eval(context,val.value)
             local new_con = context.v:add(e)
-            -- i think this is wrong - should at least be types.val(e)
+            -- this is wrong - should be type_ast(context,val.value)
             -- and then always fetching via axis
             local new_con_ty =
                 types.cell(types.face(val.bind,e),context.t)
             return runtime.eval(types.vase(new_con,new_con_ty), val.rest)
+        end,
+        ["cons"] = function()
+            return value.cell {
+                left = runtime.eval(context, val.left),
+                right = runtime.eval(context, val.right)
+            }
+        end,
+        ["face"] = function()
+            return runtime.eval(context, val.value)
+            --[[
+            return value.face {
+                bind = val.bind,
+                value = runtime.eval(context,val.value)
+            }
+            ]]
+        end,
+        ["in"] = function()
+            local ctx = types.vase(
+                runtime.eval(context, val.context),
+                types.type_ast(context,val.context)
+            )
+            return runtime.eval(ctx, val.code)
         end,
         ["if"] = function()
             local c = runtime.eval(context, val.cond)
@@ -26,11 +48,16 @@ function runtime.eval(context, val)
             else
                 print("bad if cond")
                 table.print(c)
-                error()
             end
         end,
         ["val"] = function()
-            return value.from_ast(val)
+            table.print(val)
+            if type(val.value) == "number" then
+                return value.number { value = val.value }
+            elseif val.value.tag == "lark" then
+                return types.lark(context, val.value.axis).v
+            end
+            error("fall through")
         end,
         ["fetch"] = function()
             print("rt.eval fetch of "..val.bind)
@@ -41,16 +68,24 @@ function runtime.eval(context, val)
             if ty.type == "ast" or ty.type == "value" then
                 return ty
                 --return runtime.eval(context, ty)
-            elseif ty.type == "types" then
+            elseif ty.type == "vase" then
                 -- fetch via axis
-                error('not implemented')
+                table.print(ty)
+                return ty.v
             else
-                print("fetch gave back type "..ty.type)
+                error("fetch gave back type "..ty.type)
             end
         end
     });
-    assert(tab[val.tag] ~= nil or print("bad eval "..val.tag))
-    return tab[val.tag]()
+    table.print(val)
+    expect(tab[val.tag], "bad eval on `"..val.tag.."`")
+    local ret = tab[val.tag]()
+    --expect_type(ret,"ret","value")
+    if not ret or not (ret.type == "value" or ret.type == "context") then
+        table.print(ret)
+        error("bad runtime.eval return type")
+    end
+    return ret
 end
 
 return runtime
