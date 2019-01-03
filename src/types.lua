@@ -5,6 +5,8 @@ types.face = make_type("face",{"bind","value"})
 types.fork = make_type("fork",{"variants"}) -- TODO: normalize
 types.atom = make_type("atom",{"value","aura","example"})
 types.cell = make_type("cell",{"left","right"})
+types.core = make_type("core",{"context","arms"}) -- TODO: variance
+types.hold = make_type("hold",{"type","twig"})
 types.void = make_type("void",{})
 
 function types.vase(v, t)
@@ -53,6 +55,13 @@ function types.axis_of(context,bind,axis)
     end
     table.print(context)
     error("can't find "..bind.." in context")
+end
+
+-- this is where profunctor lenses would come in use
+-- bump wants to increment edge nodes but keep structure
+-- %= wants to replace axises but keep structure
+-- probably have to refactor this so it can be used for runtime?
+function types.replace(context,pred,axis,f)
 end
 
 function types.lark(context,axis)
@@ -122,6 +131,12 @@ function types.type_ast(context,ast)
             table.print(context)
             --assert(type(axis) == "number" and ty.type == "types")
             return ty.t
+        end,
+        ["bump"] = function()
+            -- TODO: check nest(at, atom), bump edge value nodes at type-level
+            local at = types.type_ast(context, ast.atom)
+            expect(types.nest(at,types.atom({value = 0,aura = "t",example = 0})))
+            return at
         end
     }
     if not tab[ast.tag] then
@@ -131,6 +146,35 @@ function types.type_ast(context,ast)
     local ret = tab[ast.tag]()
     expect_type(ret,"ret","types",delay(table.print,ast))
     return ret
+end
+
+-- test that `source` is a structural subtype of `target`
+function types.nest(source, target)
+    expect_type(source,"source","types")
+    expect_type(target,"target","types")
+    local tab = {
+        ["fork"] = function()
+            for _,variant in next,source.variants do
+                if not types.nest(variant, target) then
+                    return false
+                end
+            end
+            return true
+        end,
+        ["face"] = function()
+            return types.nest(source.value, target)
+        end,
+        ["atom"] = function()
+            return target.tag == "atom"
+        end
+    }
+    if tab[source.tag] then
+        return tab[source.tag]()
+    else
+        print("nest")
+        table.print(source)
+        return table.equals(source, target)
+    end
 end
 
 return types

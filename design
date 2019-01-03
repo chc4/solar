@@ -34,13 +34,12 @@ syntax use lua-ish syntax
           copy-pasting all arms. would this help? retypecheck resulting core?
 
 roadmap:
-- dumb type checker (how dumb?)
-- dumb nock compiler
-- finish up nock interpreter - i think i only need macros?
-- make type checker smarter
-- make nock compiler smarter
-- selfhost
-- jit and other stuff ill never get to
+- cores
+- functions (jets?)
+- recursion, holds
+- "eval with changes"
+- type-level functions
+- variance
 
 
 problems:

@@ -7,30 +7,65 @@ make_ast = enum("ast")
 ast.let = make_ast("let", {"bind", "value", "rest"})
 ast.face = make_ast("face", {"bind","value"})
 ast["if"] = make_ast("if", {"cond","if_true", "if_false"})
-ast.core = function(...) return {tag = "core", arms = {...}} end
+ast.core = make_ast("core",{"arms"})
 ast.val = make_ast("val", {"value"})
 ast.fetch = make_ast("fetch",{"bind"})
 ast.cons = make_ast("cons",{"left","right"})
 ast["in"] = make_ast("in",{"context","code"})
+ast["bump"] = make_ast("bump",{"atom"})
+
+function open_node(tag, members)
+    return function(node)
+        expect_type(node,"node","ast")
+        expect(node.tag == tag,"expect `"..tag.."` got `"..node.tag.."`")
+        local members_set = {}
+        for _,v in next,members do
+            members_set[v] = true
+        end
+        local ret = {}
+        for k,v in next,node do
+            -- if it's a member to open, then open
+            if members_set[k] then
+                ret[k] = ast.open(v)
+            else
+                ret[k] = v
+            end
+        end
+        return ret
+    end
+end
+
 
 function ast.open(node)
-    assert(node.type == "ast")
+    expect_type(node,"node","ast")
+    table.print(node)
     local tab = {
         ["let"] = function()
             -- `=/  a  1  .` becomes `=>  [a=1 .]  .`
             return ast["in"] {
                 context = ast.cons {
-                    left = ast.face { bind = node.bind, value = node.value },
+                    left = ast.face { bind = node.bind, value = ast.open(node.value) },
                     right = ast.val { value = value.lark { axis = 1 } }
                 },
-                code = node.rest
+                code = ast.open(node.rest)
             }
-        end
+        end,
+        ["val"] = open_node("val",{}),
+        ["bump"] = open_node("bump",{"atom"}),
+        ["fetch"] = open_node("fetch",{}),
+        ["face"] = open_node("face",{"value"}),
+        ["if"] = open_node("if",{"cond","if_true","if_false"})
     }
     if not tab[node.tag] then
-        return node
+        error("cant open `"..node.tag.."`")
     end
-    return ast.open(tab[node.tag]())
+    local at = tab[node.tag](node)
+    if table.equal(ast, at) then
+        return at
+    else
+        --return ast.open(at)
+        return at
+    end
 end
 
 return ast

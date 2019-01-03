@@ -2,11 +2,21 @@ require "src/ast"
 require "src/types"
 local runtime = {}
 
+runtime.jets = {}
+
+function runtime.jets.add(a,b,...)
+    expect(a and b, "not enough args for add")
+    expect(select('#',...) == 0, "too many args for add")
+    expect(a.tag == "number", "a isnt a number")
+    expect(b.tag == "number", "b isnt a number")
+    return value.atom { value = a + b, aura = "u", example = 0 }
+end
+
 function runtime.eval(context, val)
     expect_type(context,"context","vase")
     assert(val.type == "ast")
     local tab= ({
-        ["let"] = function()
+        ["_let"] = function()
             local e = runtime.eval(context,val.value)
             local new_con = context.v:add(e)
             -- this is wrong - should be type_ast(context,val.value)
@@ -75,6 +85,11 @@ function runtime.eval(context, val)
             else
                 error("fetch gave back type "..ty.type)
             end
+        end,
+        ["bump"] = function()
+            local at = runtime.eval(context, val.atom)
+            expect(at.tag == "number","bump an atom not "..at.tag)
+            return value.number({value = 1+at.value})
         end
     });
     table.print(val)
