@@ -1,3 +1,9 @@
+function strict(tab)
+    setmetatable(tab, {__index = function(t,i)
+        error("attempt to index invalid key `"..i.."`")
+    end})
+end
+
 function table.print(tab, depth)
     local depth = depth or 0
     if type(tab) ~= "table" then print(("-"):rep(depth)..tab) return end
@@ -87,7 +93,12 @@ end
 
 function expect_type(val, name, ty, callback)
     if val == nil then
+        if callback then callback() end
         error(name.." is nil")
+    end
+    if val.type == nil then
+        if callback then callback() end
+        error(name.." isn't "..ty..", has no type")
     end
     if val.type ~= ty then
         if callback then callback() end

@@ -38,6 +38,7 @@ roadmap:
 - functions (jets?)
 - recursion, holds
 - "eval with changes"
+- fishing, flow dependent typing
 - type-level functions
 - variance
 

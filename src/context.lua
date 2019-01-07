@@ -3,9 +3,7 @@ types = require "src/types"
 context = {}
 
 function context.new()
-    local obj = setmetatable({},
-                    setmetatable({__index = context},value)
-                )
+    local obj = value.number { value = 0 }
     return obj
 end
 

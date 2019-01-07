@@ -5,6 +5,7 @@ types.face = make_type("face",{"bind","value"})
 types.fork = make_type("fork",{"variants"}) -- TODO: normalize
 types.atom = make_type("atom",{"value","aura","example"})
 types.cell = make_type("cell",{"left","right"})
+--- core arms are {"name",axis,twig}
 types.core = make_type("core",{"context","arms"}) -- TODO: variance
 types.hold = make_type("hold",{"type","twig"})
 types.void = make_type("void",{})
@@ -31,27 +32,33 @@ function types.vase_cons(left,right)
 end
 
 -- should probably be doing visitor pattern tbh
+-- returns {"face",axis, type} or {"core",arm_index,type,core}
 function types.axis_of(context,bind,axis)
     axis = axis or 1
     print("bind:",bind)
     table.print(context)
-    assert(context.type == "vase")
+    assert(context.type == "types")
     if bind == 1 then
-        return axis,context
+        return {"face",axis,context}
     end
-    if context.t.tag == "face" then
-        if context.t.bind == bind then
-            return axis,context
+    if context.tag == "face" then
+        if context.bind == bind then
+            return {"face",axis,context}
         else
             return nil --types.axis_of(types.vase(context.v.value,context.t),bind,axis)
         end
-    elseif context.t.tag == "cell" then
-        local n_axis, ty = types.axis_of(types.vase_go("left",context),bind,axis*2)
-        if ty then
-            return n_axis,ty
+    elseif context.tag == "cell" then
+        local r = types.axis_of(context.left,bind,axis*2)
+        if r then
+            return r
         else
-            return types.axis_of(types.vase_go("right",context),bind,axis*2+1)
+            return types.axis_of(context.right,bind,axis*2+1)
         end
+    elseif context.tag == "core" then
+        -- TODO: allow indexing into core sample
+        local arm = context.arms[bind]
+        if not arm then return nil end
+        return {"core",arm[1],arm[2],axis,context}
     end
     table.print(context)
     error("can't find "..bind.." in context")
@@ -78,6 +85,24 @@ function types.type_ast(context,ast)
     expect_type(context,"context","vase")
     expect(ast.type == "ast","ast isnt ast, "..ast.type)
     local tab = {
+        ["core"] = function()
+            local arms = {}
+            if #ast.arms == 1 then
+                local arm = ast.arms[1]
+                arms = {
+                    [arm[1]] = {2,types.type_ast(context,arm[2])}
+                }
+            else
+                for i,arm in next,ast.arms do
+                    local axis = 2 * math.pow(2, (#ast.arms - i))
+                    arms[arm[1]] = {axis,types.type_ast(context,arm[2])}
+                end
+            end
+            return types.core {
+                context = context.t,
+                arms = arms
+            }
+        end,
         ["face"] = function()
             return types.face { bind = ast.bind, value = types.type_ast(context,ast.value) }
         end,
@@ -123,14 +148,21 @@ function types.type_ast(context,ast)
             , ast.rest)
         end,
         ["fetch"] = function()
-            local axis,ty = types.axis_of(context,ast.bind)
-            if not axis or not ty then
+            local ax = types.axis_of(context.t,ast.bind)
+            if not ax then
                 print("fetch "..ast.bind.." failed!")
-                --error()
+                error()
             end
             table.print(context)
             --assert(type(axis) == "number" and ty.type == "types")
-            return ty.t
+            if ax[1] == "face" then
+                return ax[3]
+            else
+                -- fetch core arm
+                print("fetch arm")
+                table.print(ax)
+                return ax[3]
+            end
         end,
         ["bump"] = function()
             -- TODO: check nest(at, atom), bump edge value nodes at type-level

@@ -7,7 +7,7 @@ make_ast = enum("ast")
 ast.let = make_ast("let", {"bind", "value", "rest"})
 ast.face = make_ast("face", {"bind","value"})
 ast["if"] = make_ast("if", {"cond","if_true", "if_false"})
-ast.core = make_ast("core",{"arms"})
+ast.core = make_ast("core",{"arms"}) -- arms are {"name",twig}
 ast.val = make_ast("val", {"value"})
 ast.fetch = make_ast("fetch",{"bind"})
 ast.cons = make_ast("cons",{"left","right"})
@@ -50,10 +50,17 @@ function ast.open(node)
                 code = ast.open(node.rest)
             }
         end,
+        ["in"] = open_node("in",{"context","code"}),
         ["val"] = open_node("val",{}),
         ["bump"] = open_node("bump",{"atom"}),
         ["fetch"] = open_node("fetch",{}),
         ["face"] = open_node("face",{"value"}),
+        ["core"] = function()
+            for i,arm in next,node.arms do
+                node.arms[i] = {arm[1],ast.open(arm[2])}
+            end
+            return node
+        end,
         ["if"] = open_node("if",{"cond","if_true","if_false"})
     }
     if not tab[node.tag] then

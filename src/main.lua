@@ -25,9 +25,20 @@ function testcase_one()
     }
 end
 
+function testcase_three()
+    return ast["in"] {
+        context = ast.core {
+            arms = {
+                {"a", ast.val { value = 5 }}
+            }
+        },
+        code = ast.fetch { bind = "a" }
+    }
+end
+
 local input = io.open("test.sol","r"):read("*a")
 
-local tree = testcase_two()
+local tree = testcase_three()
 tree = ast.open(tree)
 
 local context_vase = types.vase(context.new(),types.atom {value=0, aura = "z", example = 0})

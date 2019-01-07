@@ -1,5 +1,6 @@
 require "src/ast"
 require "src/types"
+require "src/value"
 local runtime = {}
 
 runtime.jets = {}
@@ -10,6 +11,16 @@ function runtime.jets.add(a,b,...)
     expect(a.tag == "number", "a isnt a number")
     expect(b.tag == "number", "b isnt a number")
     return value.atom { value = a + b, aura = "u", example = 0 }
+end
+
+function runtime.fetch(context,axis)
+    if axis == 1 then
+        return context
+    elseif axis % 2 == 0 then
+        return runtime.fetch(context.left,math.floor(axis / 2))
+    elseif axis % 2 == 1 then
+        return runtime.fetch(context.right,math.floor(axis / 2))
+    end
 end
 
 function runtime.eval(context, val)
@@ -26,10 +37,10 @@ function runtime.eval(context, val)
             return runtime.eval(types.vase(new_con,new_con_ty), val.rest)
         end,
         ["cons"] = function()
-            return value.cell {
-                left = runtime.eval(context, val.left),
-                right = runtime.eval(context, val.right)
-            }
+            return value.repr(context,val)
+        end,
+        ["core"] = function()
+            return value.repr(context,val)
         end,
         ["face"] = function()
             return runtime.eval(context, val.value)
@@ -61,27 +72,28 @@ function runtime.eval(context, val)
             end
         end,
         ["val"] = function()
-            table.print(val)
-            if type(val.value) == "number" then
-                return value.number { value = val.value }
-            elseif val.value.tag == "lark" then
-                return types.lark(context, val.value.axis).v
-            end
-            error("fall through")
+            return value.repr(context,val)
         end,
         ["fetch"] = function()
             print("rt.eval fetch of "..val.bind)
-            local axis, ty = types.axis_of(context, val.bind)
-            table.print(ty)
+            local ax = types.axis_of(context.t, val.bind)
+            table.print(ax)
             --assert(type(axis) == "number" and ty.type == "types")
-            print("found "..val.bind.." at "..axis)
-            if ty.type == "ast" or ty.type == "value" then
-                return ty
-                --return runtime.eval(context, ty)
-            elseif ty.type == "vase" then
+            print("found "..val.bind.." at "..ax[2])
+            if ax[1] == "face" then
                 -- fetch via axis
-                table.print(ty)
-                return ty.v
+                table.print(ax)
+                return runtime.fetch(context.v,ax[2])
+            elseif ax[1] == "core" then
+                -- resolves to an arm - need to call .*[arm core]
+                table.print(ax)
+                print("--")
+                local core = runtime.fetch(context.v,ax[4])
+                table.print(core)
+                local arm = runtime.fetch(core,ax[2])
+                print("arm axis is "..ax[2])
+                table.print(arm)
+                return runtime.eval(types.vase(ax[5],core),arm)
             else
                 error("fetch gave back type "..ty.type)
             end
@@ -97,6 +109,8 @@ function runtime.eval(context, val)
     local ret = tab[val.tag]()
     --expect_type(ret,"ret","value")
     if not ret or not (ret.type == "value" or ret.type == "context") then
+        print(val.tag)
+        print(ret.tag)
         table.print(ret)
         error("bad runtime.eval return type")
     end
