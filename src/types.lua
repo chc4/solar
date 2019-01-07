@@ -75,9 +75,9 @@ function types.lark(context,axis)
     if axis == 1 then
         return context
     elseif axis % 2 == 0 then
-        return types.lark(types.vase_go("left",context),axis/2)
+        return types.vase_go("left",types.lark(context,axis/2))
     else
-        return types.lark(types.vase_go("right",context),(axis-1)/2)
+        return types.vase_go("right",types.lark(context,(axis-1)/2))
     end
 end
 
@@ -114,7 +114,12 @@ function types.type_ast(context,ast)
                 }
             else
                 for i,arm in next,ast.arms do
-                    local axis = 2 + 2 * math.pow(2, (#ast.arms - i))
+                    local axis
+                    if i ~= 1 then
+                        axis = 6 * (math.pow(2, (#ast.arms - i))) - 2
+                    else
+                        axis = 6 * (math.pow(2, (i + 1))) - 1
+                    end
                     arms[arm[1]] = {axis,arm[2]}
                 end
             end
@@ -181,7 +186,8 @@ function types.type_ast(context,ast)
                 -- fetch core arm
                 print("fetch arm")
                 table.print(ax)
-                return types.type_ast(context,ax[3])
+                local core = types.lark(context,ax[4])
+                return types.type_ast(core,ax[3])
             end
         end,
         ["bump"] = function()

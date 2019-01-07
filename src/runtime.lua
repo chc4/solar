@@ -1,7 +1,7 @@
 require "src/ast"
 require "src/types"
 require "src/value"
-local runtime = {}
+runtime = {}
 
 runtime.jets = {}
 
@@ -14,12 +14,16 @@ function runtime.jets.add(a,b,...)
 end
 
 function runtime.fetch(context,axis)
+    table.print(context)
+    print(axis)
     if axis == 1 then
         return context
     elseif axis % 2 == 0 then
-        return runtime.fetch(context.left,math.floor(axis / 2))
-    elseif axis % 2 == 1 then
-        return runtime.fetch(context.right,math.floor(axis / 2))
+        print("go left")
+        return runtime.fetch(context,axis / 2).left
+    else
+        print("go right")
+        return runtime.fetch(context,(axis - 1) / 2).right
     end
 end
 
@@ -91,8 +95,9 @@ function runtime.eval(context, val)
                 print("--")
                 local core = runtime.fetch(context.v,ax[4])
                 table.print(core)
-                local arm = runtime.fetch(core,ax[2])
+                print("---")
                 print("arm axis is "..ax[2])
+                local arm = runtime.fetch(core,ax[2])
                 table.print(arm)
                 return runtime.eval(types.vase(core,ax[5]),arm)
             else

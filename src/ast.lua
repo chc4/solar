@@ -50,6 +50,7 @@ function ast.open(node)
                 code = ast.open(node.rest)
             }
         end,
+        ["cons"] = open_node("cons",{"left","right"}),
         ["in"] = open_node("in",{"context","code"}),
         ["val"] = open_node("val",{}),
         ["bump"] = open_node("bump",{"atom"}),

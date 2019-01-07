@@ -29,11 +29,19 @@ function testcase_three()
     return ast["in"] {
         context = ast.core {
             arms = {
-                {"a", ast.val { value = 5 }},
-                {"b", ast.fetch { bind = "a" }}
+                {"a", ast.val { value = 1 }},
+                {"b", ast.val { value = 2 }},
+                {"c", ast.val { value = 3 }},
+                {"d", ast.cons {
+                    left = ast.fetch { bind = "a" },
+                    right = ast.cons {
+                        left = ast.fetch { bind = "b" },
+                        right = ast.fetch { bind = "c" }
+                    }
+                }}
             }
         },
-        code = ast.fetch { bind = "b" }
+        code = ast.fetch { bind = "d" }
     }
 end
 
