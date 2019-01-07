@@ -25,7 +25,7 @@ end
 
 function runtime.eval(context, val)
     expect_type(context,"context","vase")
-    assert(val.type == "ast")
+    expect_type(val,"val","ast")
     local tab= ({
         ["_let"] = function()
             local e = runtime.eval(context,val.value)
@@ -76,6 +76,7 @@ function runtime.eval(context, val)
         end,
         ["fetch"] = function()
             print("rt.eval fetch of "..val.bind)
+            table.print(context)
             local ax = types.axis_of(context.t, val.bind)
             table.print(ax)
             --assert(type(axis) == "number" and ty.type == "types")
@@ -93,7 +94,7 @@ function runtime.eval(context, val)
                 local arm = runtime.fetch(core,ax[2])
                 print("arm axis is "..ax[2])
                 table.print(arm)
-                return runtime.eval(types.vase(ax[5],core),arm)
+                return runtime.eval(types.vase(core,ax[5]),arm)
             else
                 error("fetch gave back type "..ty.type)
             end

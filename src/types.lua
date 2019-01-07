@@ -89,13 +89,33 @@ function types.type_ast(context,ast)
             local arms = {}
             if #ast.arms == 1 then
                 local arm = ast.arms[1]
+                -- [[
+                -- PROBLEM:
+                -- core arms can refer to other core arms, or even themselves
+                -- it should be something like type_ast(ast,arm[2]) -
+                -- that is, arms being typed in the context of the entire containing
+                -- core. this is recursive.
+                -- solution are:
+                -- * having all arms be %holds. %hold evaluation is lazy, and checks
+                --   for loops. a:core would evaluate the a hold with the entire lazy
+                --   self, and crash if it tries to evaluate itself again.
+                --   pros: can cache typing of arms, explicit crashes
+                -- * don't type arms. hoon (and watt) does this, only putting the
+                --   twig in the core type. a:core then only types at the call-site,
+                --   and will type each arm only as it visit them
+                --   cons: easier, how watt does it, can just expand other arms to %hold
+                --    and avoid infinite loops at type-check (more powerful metaprogramming?)
+                --   (think go with this one: recursive functions still need to refer to themselves,
+                --    just in a bounded form, and so need %holds no matter what. also allows
+                --    wet cores to be implemented at callsite.)
+                -- ]]
                 arms = {
-                    [arm[1]] = {2,types.type_ast(context,arm[2])}
+                    [arm[1]] = {2,arm[2]}
                 }
             else
                 for i,arm in next,ast.arms do
-                    local axis = 2 * math.pow(2, (#ast.arms - i))
-                    arms[arm[1]] = {axis,types.type_ast(context,arm[2])}
+                    local axis = 2 + 2 * math.pow(2, (#ast.arms - i))
+                    arms[arm[1]] = {axis,arm[2]}
                 end
             end
             return types.core {
@@ -161,7 +181,7 @@ function types.type_ast(context,ast)
                 -- fetch core arm
                 print("fetch arm")
                 table.print(ax)
-                return ax[3]
+                return types.type_ast(context,ax[3])
             end
         end,
         ["bump"] = function()
