@@ -1,3 +1,12 @@
 [submodule "lib/lclass"]
 	path = lib/lclass
 	url = https://github.com/chc4/lclass.git
+[submodule "lib/luaclang"]
+	path = lib/luaclang
+	url = https://github.com/grrrwaaa/luaclang.git
+[submodule "lib/lua-llvm"]
+	path = lib/lua-llvm
+	url = https://github.com/afonso360/lua-llvm.git
+[submodule "lib/lualvm"]
+	path = lib/lualvm
+	url = git@github.com:chc4/lualvm.git
