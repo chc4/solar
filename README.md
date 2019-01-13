@@ -15,7 +15,7 @@ gonna make a perfect programming language. gonna make it with imperfect code.
 
 its lua you just run `lua src/main.lua`. that would be `lua5.1` but also lualvm uses 5.2 ABI so don't do that.
 
-lualvm might give you trouble (because its bad). you gotta install [this dude's weird lua bindgen]()
+lualvm might give you trouble (because its bad). you gotta install [this dude's weird lua bindgen](https://github.com/gilzoide/inclua)
 and also maybe remove LLVMCreateOprofileJITEventListener from /usr/include/llvm-c/ExecutionEngine.h. c'est la vie.
 
 i wrote a parser in rust for this but its not hooked up. once that works you'll probably have to build that too.
