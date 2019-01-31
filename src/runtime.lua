@@ -14,15 +14,11 @@ function runtime.jets.add(a,b,...)
 end
 
 function runtime.fetch(context,axis)
-    table.print(context)
-    print(axis)
     if axis == 1 then
         return context
     elseif axis % 2 == 0 then
-        print("go left")
         return runtime.fetch(context,axis / 2).left
     else
-        print("go right")
         return runtime.fetch(context,(axis - 1) / 2).right
     end
 end
@@ -91,14 +87,9 @@ function runtime.eval(context, val)
                 return runtime.fetch(context.v,ax[2])
             elseif ax[1] == "core" then
                 -- resolves to an arm - need to call .*[arm core]
-                table.print(ax)
-                print("--")
                 local core = runtime.fetch(context.v,ax[4])
-                table.print(core)
-                print("---")
                 print("arm axis is "..ax[2])
                 local arm = runtime.fetch(core,ax[2])
-                table.print(arm)
                 return runtime.eval(types.vase(core,ax[5]),arm)
             else
                 error("fetch gave back type "..ty.type)

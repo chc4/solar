@@ -32,7 +32,7 @@ function types.vase_cons(left,right)
 end
 
 -- should probably be doing visitor pattern tbh
--- returns {"face",axis, type} or {"core",arm_index,type,core}
+-- returns {"face",axis,type} or {"core",name,twig,axis,core}
 function types.axis_of(context,bind,axis)
     axis = axis or 1
     print("bind:",bind)

@@ -4,6 +4,26 @@ local context = require "src/context"
 local parser = require "src/parser"
 local types = require "src/types"
 local rt = require "src/runtime"
+local jit = require "src/jit"
+
+function test_nouns()
+    return ast.cons {
+        left = ast.val { value = 9 },
+        right = ast.val { value = 10 }
+    }
+end
+
+function test_fetch()
+    return ast.fetch { bind = "solar" }
+end
+
+function testcase_one()
+    return ast.let {
+        bind = "a",
+        value = ast.val { value = 1 },
+        rest = ast.fetch { bind = "a" }
+    }
+end
 
 function testcase_two()
     return ast.let {
@@ -14,14 +34,6 @@ function testcase_two()
             if_false = ast.val {value=3}
         }},
         rest = ast.bump { atom = ast.face { bind = "c", value = ast.fetch {bind="a"} } }
-    }
-end
-
-function testcase_one()
-    return ast.let {
-        bind = "a",
-        value = ast.val { value = 1 },
-        rest = ast.fetch { bind = "a" }
     }
 end
 
@@ -47,13 +59,16 @@ end
 
 local input = io.open("test.sol","r"):read("*a")
 
-local tree = testcase_three()
+local tree = test_nouns()
 tree = ast.open(tree)
 
-local context_vase = types.vase(context.new(),types.atom {value=0, aura = "z", example = 0})
+local context_vase = types.vase(context.new(), types.face { bind = "solar", value = types.atom {value=0, aura = "z", example = 0} })
 local ty = types.type_ast(context_vase,tree)
 print("RET TYPE")
 table.print(ty)
 
-local eval = rt.eval(context_vase, tree)
-table.print(eval)
+--local eval = rt.eval(context_vase, tree)
+local cont = jit()
+local m = cont:run(tree, context_vase)
+cont:dispose()
+--table.print(eval)

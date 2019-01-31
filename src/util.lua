@@ -19,7 +19,7 @@ function table.print(tab, depth)
             if is_class and i == "type" or i == "tag" then
                 -- do nothing
             else
-                print(("-"):rep(depth)..i..": "..v)
+                print(("-"):rep(depth)..i..": "..tostring(v))
             end
         end
     end
