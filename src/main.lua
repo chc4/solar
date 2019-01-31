@@ -6,6 +6,10 @@ local types = require "src/types"
 local rt = require "src/runtime"
 local jit = require "src/jit"
 
+function test_atom()
+    return ast.val { value = 8 }
+end
+
 function test_nouns()
     return ast.cons {
         left = ast.val { value = 9 },
@@ -15,6 +19,10 @@ end
 
 function test_fetch()
     return ast.fetch { bind = "solar" }
+end
+
+function test_lark()
+    return ast.val { value = value.lark { axis = 1 } }
 end
 
 function testcase_one()
@@ -59,7 +67,7 @@ end
 
 local input = io.open("test.sol","r"):read("*a")
 
-local tree = test_nouns()
+local tree = test_lark()
 tree = ast.open(tree)
 
 local context_vase = types.vase(context.new(), types.face { bind = "solar", value = types.atom {value=0, aura = "z", example = 0} })

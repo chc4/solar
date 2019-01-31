@@ -68,6 +68,22 @@ function jit:add_cell()
     print("registered %struct.cell")
 end
 
+function jit:lark(axis)
+    if axis == 1 then
+        return self.context
+    elseif axis % 2 == 0 then
+        expect(self.context.t.tag,"cell")
+        local left_ptr = self.B:ExtractValue(self.context, 0, "lark.left_ptr")
+        local left = self.B:Load(left_ptr,"lark.left")
+        return types.vase(self.context.t.left, left)
+    else
+        expect(self.context.t.tag,"cell")
+        local right_ptr = self.B:ExtractValue(self.context, 1, "lark.right_ptr")
+        local right = self.B:Load(right_ptr,"lark.right")
+        return types.vase(self.context.t.right, right)
+    end
+end
+
 function jit:repr(noun)
     local tab = {
         ["val"] = function()
@@ -76,6 +92,8 @@ function jit:repr(noun)
                 self.B:Store(ll.ConstInt(i32, noun.value), n)
                 return types.vase(n,
                     types.atom { value = noun.value, aura = "d", example = noun.value })
+            elseif noun.value.tag == "lark" then
+                return self:lark(noun.value.axis)
             end
             error("emit types.val."..noun.value.tag)
         end,
@@ -119,8 +137,9 @@ function jit:emit(ast)
         end,
         ["fetch"] = function()
             local axis = types.axis_of(self.context.t, ast.bind)
+            table.print(axis)
             if axis[1] == "face" then
-                print("cool")
+                return self:lark(axis[2])
             end
             error()
         end
@@ -135,7 +154,8 @@ end
 function jit:print(noun)
     local tab = {
         ["atom"] = function()
-            self.B:Call(self.printf, { self.M:AddAlias(i8p, self.atom_format, 'oi?'), noun.v }, '_')
+            local atom = self.B:Load(noun.v, "atom")
+            self.B:Call(self.printf, { self.M:AddAlias(i8p, self.atom_format, 'oi?'), atom }, '_')
         end,
         ["cell"] = function()
             table.print(noun)
@@ -147,6 +167,12 @@ function jit:print(noun)
             local right = self.B:Load(right_ptr,"right")
             print("extracted left and right")
             self.B:Call(self.printf, { self.M:AddAlias(i8p, self.cell_format, 'oi?'), left, right}, '_')
+        end,
+        ["face"] = function()
+            table.print(noun)
+            local binding = self.B:GlobalStringPtr(noun.t.bind.."=", "binding."..noun.t.bind)
+            self.B:Call(self.printf, { binding }, '_')
+            self:print(noun.v)
         end
     }
     if tab[noun.t.tag] then
