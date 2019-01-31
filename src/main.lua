@@ -67,7 +67,7 @@ end
 
 local input = io.open("test.sol","r"):read("*a")
 
-local tree = test_lark()
+local tree = testcase_one()
 tree = ast.open(tree)
 
 local context_vase = types.vase(context.new(), types.face { bind = "solar", value = types.atom {value=0, aura = "z", example = 0} })

@@ -68,19 +68,24 @@ function jit:add_cell()
     print("registered %struct.cell")
 end
 
-function jit:lark(axis)
+function jit:lark(context, axis)
     if axis == 1 then
-        return self.context
+        table.print(context)
+        return context
     elseif axis % 2 == 0 then
-        expect(self.context.t.tag,"cell")
-        local left_ptr = self.B:ExtractValue(self.context, 0, "lark.left_ptr")
-        local left = self.B:Load(left_ptr,"lark.left")
-        return types.vase(self.context.t.left, left)
+        expect(context.t.tag,"cell")
+        print("go left")
+        table.print(context)
+        local c = self.B:Load(context.v, "lark.temp")
+        local left_ptr = self.B:ExtractValue(c, 0, "lark.left_ptr")
+        print("went left")
+        return self:lark(types.vase(left_ptr, context.t.left), axis / 2)
     else
-        expect(self.context.t.tag,"cell")
-        local right_ptr = self.B:ExtractValue(self.context, 1, "lark.right_ptr")
-        local right = self.B:Load(right_ptr,"lark.right")
-        return types.vase(self.context.t.right, right)
+        expect(context.t.tag,"cell")
+        print("go right")
+        local c = self.B:Load(context.v, "lark.temp")
+        local right_ptr = self.B:ExtractValue(c, 1, "lark.right_ptr")
+        return self:lark(types.vase(right_ptr, context.t.right), (axis - 1) / 2)
     end
 end
 
@@ -93,7 +98,7 @@ function jit:repr(noun)
                 return types.vase(n,
                     types.atom { value = noun.value, aura = "d", example = noun.value })
             elseif noun.value.tag == "lark" then
-                return self:lark(noun.value.axis)
+                return self:lark(self.context, noun.value.axis)
             end
             error("emit types.val."..noun.value.tag)
         end,
@@ -118,6 +123,7 @@ function jit:emit(ast)
             return r
         end,
         ["cons"] = function()
+            table.print(ast)
             local left = self:emit(ast.left)
             local right = self:emit(ast.right)
             print("made left and right")
@@ -139,9 +145,19 @@ function jit:emit(ast)
             local axis = types.axis_of(self.context.t, ast.bind)
             table.print(axis)
             if axis[1] == "face" then
-                return self:lark(axis[2])
+                -- why does axis_of give me a type with the face still on?
+                return types.vase(self:lark(self.context, axis[2]).v, axis[3].value)
             end
             error()
+        end,
+        ["in"] = function()
+            local c = self:emit(ast.context)
+            self.context = c
+            return self:emit(ast.code)
+        end,
+        ["face"] = function()
+            table.print(ast)
+            return self:emit(ast.value)
         end
     }
     if tab[ast.tag] then
@@ -154,6 +170,8 @@ end
 function jit:print(noun)
     local tab = {
         ["atom"] = function()
+            print("print atom")
+            table.print(noun)
             local atom = self.B:Load(noun.v, "atom")
             self.B:Call(self.printf, { self.M:AddAlias(i8p, self.atom_format, 'oi?'), atom }, '_')
         end,
@@ -169,15 +187,17 @@ function jit:print(noun)
             self.B:Call(self.printf, { self.M:AddAlias(i8p, self.cell_format, 'oi?'), left, right}, '_')
         end,
         ["face"] = function()
+            print("print face")
             table.print(noun)
             local binding = self.B:GlobalStringPtr(noun.t.bind.."=", "binding."..noun.t.bind)
             self.B:Call(self.printf, { binding }, '_')
-            self:print(noun.v)
+            self:print(types.vase(noun.v, noun.t.value))
         end
     }
     if tab[noun.t.tag] then
         return tab[noun.t.tag]()
     else
+        table.print(noun)
         error("can't print noun."..noun.t.tag)
     end
 end
@@ -205,7 +225,8 @@ function jit:run(ast,context)
     --local hello_str = self.B:GlobalStringPtr("Hello world!", 'main.str')
     --self.B:Call(self.puts, { self.M:AddAlias(i8p, hello_str, 'oi?') }, '_')
 
-    self.context = types.vase(self:repr(context.v),context.t)
+    self.context = types.vase(self:repr(context.v).v,context.t)
+    table.print(self.context)
     ret = self:emit(ast)
     assert(ret)
     self:print(ret)
