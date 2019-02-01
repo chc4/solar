@@ -131,7 +131,6 @@ function jit:as_cell(noun)
 end
 
 function jit:lark(context, axis)
-    error("fix this for unions")
     if axis == 1 then
         table.print(context)
         return context
@@ -139,16 +138,15 @@ function jit:lark(context, axis)
         expect(context.t.tag,"cell")
         print("go left")
         table.print(context)
-        local c = self.B:Load(context.v, "lark.temp")
-        local left_ptr = self.B:ExtractValue(c, 1, "lark.left_ptr")
+        local left, right = self:as_cell(context.v)
         print("went left")
-        return self:lark(types.vase(left_ptr, context.t.left), axis / 2)
+        return self:lark(types.vase(left, context.t.left), axis / 2)
     else
         expect(context.t.tag,"cell")
         print("go right")
-        local c = self.B:Load(context.v, "lark.temp")
-        local right_ptr = self.B:ExtractValue(c, 2, "lark.right_ptr")
-        return self:lark(types.vase(right_ptr, context.t.right), (axis - 1) / 2)
+        local left, right = self:as_cell(context.v)
+        print("went right")
+        return self:lark(types.vase(right, context.t.right), (axis - 1) / 2)
     end
 end
 
