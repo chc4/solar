@@ -41,7 +41,7 @@ end
 
 function test_if()
     return ast["if"] {
-        cond = ast.val { value = 0 },
+        cond = ast.val { value = 1 },
         if_true = ast.val { value = 2 },
         if_false = ast.val { value = 3 }
     }
@@ -89,7 +89,7 @@ end
 
 local input = io.open("test.sol","r"):read("*a")
 
-local tree = test_nested()
+local tree = test_if()
 tree = ast.open(tree)
 
 local context_vase = types.vase(context.new(), types.face { bind = "solar", value = types.atom {value=0, aura = "z", example = 0} })
