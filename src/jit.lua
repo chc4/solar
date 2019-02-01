@@ -293,8 +293,7 @@ function jit:emit(ast)
             local axis = types.axis_of(self.context.t, ast.bind)
             table.print(self.context)
             if axis[1] == "face" then
-                -- why does axis_of give me a type with the face still on?
-                return self:lark(self.context.v, axis[2]).v
+                return self:lark(self.context.v, axis[2])
             else
                 local core_p = self:lark(self.context.v, axis[4])
                 print("CORE",core_p)
@@ -440,7 +439,7 @@ function jit:print(noun,noun_ty)
         ["face"] = function()
             print("print face")
             table.print(noun)
-            local binding = self.B:GlobalStringPtr(noun.t.bind.."=", "binding."..noun.t.bind)
+            local binding = self.B:GlobalStringPtr(noun_ty.bind.."=", "binding."..noun_ty.bind)
             self.B:Call(self.printf, { binding }, '_')
             self:print(noun, noun_ty.value)
         end,

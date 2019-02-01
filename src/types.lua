@@ -43,7 +43,7 @@ function types.axis_of(context,bind,axis)
     end
     if context.tag == "face" then
         if context.bind == bind then
-            return {"face",axis,context}
+            return {"face",axis,context.value}
         else
             return nil --types.axis_of(types.vase(context.v.value,context.t),bind,axis)
         end

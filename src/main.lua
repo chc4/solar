@@ -67,6 +67,17 @@ function test_arm()
    }
 end
 
+function test_core_context()
+    return ast["in"] {
+        context = ast.core {
+            arms = {
+                {"a", ast.fetch { bind = "solar" }},
+            }
+        },
+        code = ast.fetch { bind = "a" }
+    }
+end
+
 function testcase_one()
     return ast.let {
         bind = "a",
@@ -109,7 +120,7 @@ end
 
 local input = io.open("test.sol","r"):read("*a")
 
-local tree = testcase_three()
+local tree = test_fetch()
 tree = ast.open(tree)
 
 local context_vase = types.vase(context.new(), types.face { bind = "solar", value = types.atom {value=0, aura = "z", example = 0} })
@@ -117,8 +128,12 @@ local ty = types.type_ast(context_vase,tree)
 print("RET TYPE")
 table.print(ty)
 
---local eval = rt.eval(context_vase, tree)
-local cont = jit()
-local m = cont:run(tree, context_vase)
-cont:dispose()
---table.print(eval)
+local use_llvm = false
+if not use_llvm then
+    local eval = rt.eval(context_vase, tree)
+    table.print(eval)
+else
+    local cont = jit()
+    local m = cont:run(tree, context_vase)
+    cont:dispose()
+end
