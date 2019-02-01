@@ -6,7 +6,7 @@ end
 
 function table.print(tab, depth)
     local depth = depth or 0
-    if type(tab) ~= "table" then print(("-"):rep(depth)..tab) return end
+    if type(tab) ~= "table" then print(("-"):rep(depth)..tostring(tab)) return end
     local is_class = tab.type and tab.tag
     if is_class then
         print(("-"):rep(depth)..tab.type.."."..tab.tag)

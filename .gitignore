@@ -1,2 +1,3 @@
 output.ll
 lib/*
+.gdb_history

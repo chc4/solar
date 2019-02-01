@@ -25,6 +25,18 @@ function test_lark()
     return ast.val { value = value.lark { axis = 1 } }
 end
 
+function test_bump()
+    return ast.bump { atom = ast.val { value = 1 } }
+end
+
+function test_if()
+    return ast["if"] {
+        cond = ast.val { value = 0 },
+        if_true = ast.val { value = 2 },
+        if_false = ast.val { value = 3 }
+    }
+end
+
 function testcase_one()
     return ast.let {
         bind = "a",
@@ -67,7 +79,7 @@ end
 
 local input = io.open("test.sol","r"):read("*a")
 
-local tree = testcase_one()
+local tree = test_if()
 tree = ast.open(tree)
 
 local context_vase = types.vase(context.new(), types.face { bind = "solar", value = types.atom {value=0, aura = "z", example = 0} })
