@@ -66,13 +66,13 @@ function jit:add_noun()
     self.noun_ty = ll.LLVMStructCreateNamed(self.C, "struct.noun")
     print("registered %struct.noun")
 
+    self.atom_ty = ll.LLVMStructCreateNamed(self.C, "struct.atom")
+    ll.LLVMStructSetBody(self.atom_ty, { i1, i32 }, 2, false)
+
     self.cell_ty = ll.LLVMStructCreateNamed(self.C,"struct.cell")
-    ll.LLVMStructSetBody(self.cell_ty, { i1, self.noun_ty:Pointer(0), self.noun_ty:Pointer(0)}, 3, false)
+    ll.LLVMStructSetBody(self.cell_ty, { i1, self.atom_ty:Pointer(0), self.atom_ty:Pointer(0)}, 3, false)
     print(self.cell_ty)
     print("registered %struct.cell")
-
-    self.atom_ty = ll.LLVMStructCreateNamed(self.C, "struct.atom")
-    ll.LLVMStructSetBody(self.atom_ty, { i1, i32p }, 2, false)
 
     -- i1 set == cell, not set == atom
     -- does this break with 64bit?
@@ -83,7 +83,7 @@ end
 function jit:make_noun(noun)
     if noun:TypeOf():GetStructName() == "" then
         -- is an atom
-        local n_p = self.B:Alloca(self.noun_ty, "noun.atom")
+        local n_p = self.B:Malloc(self.noun_ty, "noun.atom")
         local n = self.B:InBoundsGEP(n_p, { zero, zero }, 2, "noun.atom.tag")
         self.B:Store(ll.ConstInt(i1, 0), n)
         print("stored noun.atom tag")
@@ -103,9 +103,11 @@ end
 function jit:as_atom(noun)
     -- TODO: emit assert for tag
     table.print(noun)
-    local atom = self.B:Load(noun, "as_atom.atom")
+    local atom = self.B:BitCast(noun, self.atom_ty:Pointer(0), "as_atom.atomptr")
     table.print(atom)
-    local val = self.B:ExtractValue(atom, 1, "as_atom.value")
+    local noun_val = self.B:Load(atom, "as_atom.atom")
+    local val = self.B:ExtractValue(noun_val, 1, "as_atom.value")
+    print(self.M)
     return val
 end
 
@@ -145,8 +147,9 @@ function jit:repr(noun)
     local tab = {
         ["val"] = function()
             if type(noun.value) == "number" then
-                local n = self.B:Malloc(i32,"atom."..tostring(noun.value))
-                self.B:Store(ll.ConstInt(i32, noun.value), n)
+                local n = self
+                local n = self:make_noun(ll.ConstInt(i32, noun.value))
+                assert(n)
                 return types.vase(n,
                     types.atom { value = noun.value, aura = "d", example = noun.value })
             elseif noun.value.tag == "lark" then
@@ -217,14 +220,14 @@ function jit:emit(ast)
             expect(ast.atom.tag,"atom") -- XX: check nest instead
             local noun = self:emit(ast.atom)
             print("emitted noun")
-            local bump_temp = self.B:Load(noun.v, "bump.temp")
             table.print(noun)
-            print(bump_temp,"a")
-            local bump = self.B:Add(bump_temp, ll.ConstInt(i32, 1), "bump")
+            local bump_temp = noun.v
+            print("bump_temp",bump_temp)
+            --[[local bump = self.B:Add(bump_temp, ll.ConstInt(i32, 1), "bump")
             local bumped = self.B:Malloc(i32, "atom.bumped")
-            self.B:Store(bump, bumped)
+            self.B:Store(bump, bumped)]]
             print("emitted bump")
-            return types.vase(bumped, types.type_ast(self.context, ast))
+            return types.vase(bump_temp, types.type_ast(self.context, ast))
         end,
         ["if"] = function()
             print("emit if")
@@ -285,7 +288,8 @@ function jit:print(noun)
             print("print atom")
             table.print(noun)
             local atom = self:as_atom(noun.v)
-            local atom = self.B:Load(atom, "print.atom")
+            print("print as_atom")
+            table.print(atom)
             self.B:Call(self.printf, { self.M:AddAlias(i8p, self.atom_format, 'atom_format'), atom }, '_')
         end,
         ["cell"] = function()
