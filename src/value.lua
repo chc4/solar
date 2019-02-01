@@ -43,7 +43,7 @@ function value.repr(context,val,arm)
             }
         end,
         ["core"] = function()
-            --  cores are just [[arms] context]
+            --  cores are just [context [arms]]
             local coil = nil
             if #val.arms == 0 then
                 coil = value.number { value = 0 }
@@ -65,8 +65,8 @@ function value.repr(context,val,arm)
                 end
             end
             return value.cell {
-                left = coil,
-                right = table.copy(context.v)
+                left = table.copy(context.v),
+                right = coil
             }
         end,
     }

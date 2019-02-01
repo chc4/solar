@@ -11,7 +11,7 @@ gonna make a perfect programming language. gonna make it with imperfect code.
 # progress
 
 it can build values, declare variables, do `if` statements, define cores, and evaluate arms of cores.
-it either emits llvm (run it like `lua src/main.lua && lli output.ll`) or does a dumb tree walking interpreter.
+it either emits llvm ir (run it like `lua src/main.lua && lli output.ll`) or does a dumb tree walking interpreter.
 
 todo is basically "add fetching through core contexts, add functions, add defered types, add mutations" and then hopefully i can evaluate factorials or whatever. also make the type system not utter trash.
 

@@ -79,15 +79,21 @@ function types.axis_of(context,bind,axis)
         return r
     elseif context.tag == "core" then
         -- TODO: allow indexing into core sample
-        local arm = nil
-        for _,v in next,context.arms do
-            if v[1] == bind then
-                arm = v
+        local r = types.axis_of(context.context, bind, axis*2)
+        if r then
+            print("found "..bind.." in core context")
+            table.print(r)
+            return r
+        else
+            local arm = nil
+            for _,v in next,context.arms do
+                if v[1] == bind then
+                    arm = v
+                end
             end
+            table.print(arm)
+            return {"core",arm[2],arm[3],axis,context}
         end
-        assert(arm)
-        if not arm then return nil end
-        return {"core",arm[2],arm[3],axis,context}
     end
     table.print(context)
     error("can't find "..bind.." in context")
@@ -138,17 +144,23 @@ function types.type_ast(context,ast)
                 --    just in a bounded form, and so need %holds no matter what. also allows
                 --    wet cores to be implemented at callsite.)
                 -- ]]
+                -- [context=2 arm=3]
+                -- [context=2 [arm=6 arm=7]]
+                -- [context=2 [arm=6 arm=14 arm=15]]
+                -- [context=2 [arm=6 arm=14 arm=30 31]]
                 arms = {
-                    {arm[1],2,arm[2]}
+                    {arm[1],3,arm[2]}
                 }
             else
                 for i,arm in next,ast.arms do
                     local axis
                     if i ~= 1 then
-                        axis = 6 * (math.pow(2, (#ast.arms - i))) - 2
+                        --7
+                        axis = math.pow(2, (#ast.arms - i + 3)) - 2
                     else
-                        axis = 6 * (math.pow(2, (i + 1))) - 1
+                        axis = math.pow(2, (#ast.arms - i + 2)) - 1
                     end
+                    print(axis)
                     arms[i] = {arm[1],axis,arm[2]}
                 end
             end

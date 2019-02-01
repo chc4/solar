@@ -505,7 +505,7 @@ function jit:run(ast,context)
     table.print(self.context)
     ret = self:emit(ast)
     assert(ret)
-    self:print(ret, types.type_ast(self.context, ast))
+    self:print(ret, types.type_ast(context, ast))
     self.B:Call(self.printf, { self.newline }, '_')
     self.B:Ret(ll.ConstInt(i32,0))
 

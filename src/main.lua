@@ -79,13 +79,19 @@ function test_arm()
 end
 
 function test_core_context()
-    return ast["in"] {
-        context = ast.core {
-            arms = {
-                {"a", ast.fetch { bind = "solar" }},
-            }
-        },
-        code = ast.fetch { bind = "a" }
+    return ast.let {
+        bind = "foo",
+        value = ast.val { value = 10 },
+        rest = ast["in"] {
+            context = ast.core {
+                arms = {
+                    {"a", ast.fetch { bind = "foo" }},
+                    {"b", ast.fetch { bind = "a" }},
+                    {"c", ast.fetch { bind = "b" }}
+                }
+            },
+            code = ast.fetch { bind = "b" }
+        }
     }
 end
 
@@ -131,7 +137,7 @@ end
 
 local input = io.open("test.sol","r"):read("*a")
 
-local tree = test_fork_context()
+local tree = test_core_context()
 tree = ast.open(tree)
 
 local context_vase = types.vase(context.new(), types.face { bind = "solar", value = types.atom {value=0, aura = "z", example = 0} })
