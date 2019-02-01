@@ -57,8 +57,12 @@ function jit:add_intrinsics()
     local printf_ty = ll.FunctionType (i32, { i8p }, 2, true)
     self.printf = self.M:AddFunction("printf", printf_ty)
 
-    self.atom_format = self.B:GlobalStringPtr("%d\n", "main.atom_format")
-    self.cell_format = self.B:GlobalStringPtr("[%d %d]\n", "main.cell_format")
+    self.atom_format = self.B:GlobalStringPtr("%d", "main.atom_format")
+    self.cell_format = {}
+    for i,v in next,{"["," ","]"} do
+        table.insert(self.cell_format, self.B:GlobalStringPtr(v, "main.cell_format."..i))
+    end
+    self.newline = self.B:GlobalStringPtr("\n", "main.newline")
     print("added intrinsics")
 end
 
@@ -70,7 +74,7 @@ function jit:add_noun()
     ll.LLVMStructSetBody(self.atom_ty, { i1, i32 }, 2, false)
 
     self.cell_ty = ll.LLVMStructCreateNamed(self.C,"struct.cell")
-    ll.LLVMStructSetBody(self.cell_ty, { i1, self.atom_ty:Pointer(0), self.atom_ty:Pointer(0)}, 3, false)
+    ll.LLVMStructSetBody(self.cell_ty, { i1, self.noun_ty:Pointer(0), self.noun_ty:Pointer(0)}, 3, false)
     print(self.cell_ty)
     print("registered %struct.cell")
 
@@ -80,8 +84,9 @@ function jit:add_noun()
     print(self.noun_ty)
 end
 
-function jit:make_noun(noun)
-    if noun:TypeOf():GetStructName() == "" then
+function jit:make_noun(variant,noun,noun2)
+    expect(type(variable),"string")
+    if variant == "atom" or (variant == "dynamic" and noun:TypeOf():GetStructName() == "") then
         -- is an atom
         local n_p = self.B:Malloc(self.noun_ty, "noun.atom")
         local n = self.B:InBoundsGEP(n_p, { zero, zero }, 2, "noun.atom.tag")
@@ -92,30 +97,41 @@ function jit:make_noun(noun)
         self.B:Store(noun, val)
         return n_p
     else
-        error("fix this")
-        local n = self.B:Alloca(self.noun_ty, "noun.cell")
-        self.B:InsertValue(n, ll.ConstInt(i1, 1), 0, "")
-        self.B:InsertValue(n, noun, 1, "")
-        return n
+        local n_p = self.B:Malloc(self.noun_ty, "noun.cell")
+        local n = self.B:InBoundsGEP(n_p, { zero, zero }, 2, "noun.cell.tag")
+        self.B:Store(ll.ConstInt(i1, 1), n)
+        print("stored noun.cell tag")
+        local cell = self.B:BitCast(n_p, self.cell_ty:Pointer(0), "noun.cell.cast")
+        local val = self.B:InBoundsGEP(cell, { zero, one }, 2, "noun.cell.left")
+        self.B:Store(noun, val)
+        local val = self.B:InBoundsGEP(cell, { zero, ll.ConstInt(i32, 2) }, 2, "noun.cell.right")
+        self.B:Store(noun2, val)
+        return n_p
     end
 end
 
 function jit:as_atom(noun)
     -- TODO: emit assert for tag
     table.print(noun)
-    local atom = self.B:BitCast(noun, self.atom_ty:Pointer(0), "as_atom.atomptr")
-    table.print(atom)
-    local noun_val = self.B:Load(atom, "as_atom.atom")
-    local val = self.B:ExtractValue(noun_val, 1, "as_atom.value")
-    print(self.M)
+    local atom_p = self.B:BitCast(noun, self.atom_ty:Pointer(0), "as_atom.atomptr")
+    table.print(atom_p)
+    local atom = self.B:Load(atom_p, "as_atom.atom")
+    local val = self.B:ExtractValue(atom, 1, "as_atom.value")
     return val
 end
 
 function jit:as_cell(noun)
-    error()
+    -- TODO: assert
+    table.print(noun)
+    local cell_p = self.B:BitCast(noun, self.cell_ty:Pointer(0), "as_cell.cellptr")
+    local cell = self.B:Load(cell_p, "as_cell.cell")
+    local left = self.B:ExtractValue(cell, 1, "as_atom.left")
+    local right = self.B:ExtractValue(cell, 2, "as_atom.left")
+    return left, right
 end
 
 function jit:lark(context, axis)
+    error("fix this for unions")
     if axis == 1 then
         table.print(context)
         return context
@@ -148,7 +164,7 @@ function jit:repr(noun)
         ["val"] = function()
             if type(noun.value) == "number" then
                 local n = self
-                local n = self:make_noun(ll.ConstInt(i32, noun.value))
+                local n = self:make_noun("atom",ll.ConstInt(i32, noun.value))
                 assert(n)
                 return types.vase(n,
                     types.atom { value = noun.value, aura = "d", example = noun.value })
@@ -182,12 +198,8 @@ function jit:emit(ast)
             local left = self:emit(ast.left)
             local right = self:emit(ast.right)
             print("made left and right")
-            local c = self.B:Malloc(self.cell_ty, "cell")
+            local c = self:make_noun("cell",left.v,right.v)
 
-            local c_t = self.B:Load(c, "cell.temp")
-            left = self.B:InsertValue(c_t, left.v, 1, "")
-            right = self.B:InsertValue(left, right.v, 2, "")
-            self.B:Store(right, c)
             return types.vase(
                 c,
                 types.cell {
@@ -250,7 +262,7 @@ function jit:emit(ast)
             local true_block = self:insert_block "true_block"
             local if_true = self:emit(ast.if_true)
             assert(if_true)
-            local casted = self:make_noun(if_true.v)
+            local casted = self:make_noun("dynamic",if_true.v)
             assert(casted)
             self.B:Store(casted, ret)
             self.B:Br(end_block)
@@ -259,7 +271,7 @@ function jit:emit(ast)
             local false_block = self:insert_block "false_block"
             local if_false = self:emit(ast.if_false)
             assert(if_false)
-            local casted = self:make_noun(if_false.v)
+            local casted = self:make_noun("dynamic",if_false.v)
             assert(casted)
             self.B:Store(casted, ret)
             self.B:Br(end_block)
@@ -294,14 +306,23 @@ function jit:print(noun)
         end,
         ["cell"] = function()
             table.print(noun)
-            print(self.M)
-            local c = self.B:Load(noun.v, "cell.temp")
+            --[[local c = self.B:Load(noun.v, "cell.temp")
             local left_ptr = self.B:ExtractValue(c, 1, "left_ptr")
             local left = self.B:Load(left_ptr,"left")
             local right_ptr = self.B:ExtractValue(c, 2, "right_ptr")
             local right = self.B:Load(right_ptr,"right")
+            ]]
+            local left, right = self:as_cell(noun.v)
+            function emit_print(str)
+                self.B:Call(self.printf, { str }, '_')
+            end
+            local s = self.cell_format
+            emit_print(s[1])
+            self:print(types.vase(left, noun.t.left))
+            emit_print(s[2])
+            self:print(types.vase(right, noun.t.right))
+            emit_print(s[3])
             print("extracted left and right")
-            self.B:Call(self.printf, { self.M:AddAlias(i8p, self.cell_format, 'cell_format'), left, right}, '_')
         end,
         ["face"] = function()
             print("print face")
@@ -359,7 +380,7 @@ function jit:run(ast,context)
     ret = self:emit(ast)
     assert(ret)
     self:print(ret)
-
+    self.B:Call(self.printf, { self.newline }, '_')
     self.B:Ret(ll.ConstInt(i32,0))
 
     self.M:PrintToFile("output.ll")

@@ -17,6 +17,16 @@ function test_nouns()
     }
 end
 
+function test_nested()
+    return ast.cons {
+        left = ast.val { value = 1 },
+        right = ast.cons {
+            left = ast.val { value = 2 },
+            right = ast.val { value = 3 }
+        }
+    }
+end
+
 function test_fetch()
     return ast.fetch { bind = "solar" }
 end
@@ -79,7 +89,7 @@ end
 
 local input = io.open("test.sol","r"):read("*a")
 
-local tree = test_atom()
+local tree = test_nested()
 tree = ast.open(tree)
 
 local context_vase = types.vase(context.new(), types.face { bind = "solar", value = types.atom {value=0, aura = "z", example = 0} })
