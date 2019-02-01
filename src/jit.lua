@@ -7,6 +7,7 @@ require "lib/lclass/class"
 class "jit"
 
 i1 = ll.Int1Type()
+i8 = ll.Int8Type()
 i32 = ll.Int32Type()
 i32p = ll.Int32Type():Pointer(0)
 i8p = ll.Int8Type():Pointer(0)
@@ -20,13 +21,14 @@ function jit:jit()
     self:initialize()
 
     local main_ty = ll.FunctionType(i32, {}) -- what do i put here lmao
-    self.main = self.M:AddFunction("main", main_ty)
-    local entry = self.main:AppendBasicBlock "entry"
+    self.func = self.M:AddFunction("main", main_ty)
+    local entry = self.func:AppendBasicBlock "entry"
     self.block = entry
     self.B = self.C:Builder()
     self.B:PositionAtEnd(entry)
 
     self:add_noun()
+    self.cores = {}
 
     self:add_intrinsics()
     print("jit construct")
@@ -71,16 +73,20 @@ function jit:add_noun()
     print("registered %struct.noun")
 
     self.atom_ty = ll.LLVMStructCreateNamed(self.C, "struct.atom")
-    ll.LLVMStructSetBody(self.atom_ty, { i1, i32 }, 2, false)
+    ll.LLVMStructSetBody(self.atom_ty, { i8, i32 }, 2, false)
 
     self.cell_ty = ll.LLVMStructCreateNamed(self.C,"struct.cell")
-    ll.LLVMStructSetBody(self.cell_ty, { i1, self.noun_ty:Pointer(0), self.noun_ty:Pointer(0)}, 3, false)
+    ll.LLVMStructSetBody(self.cell_ty, { i8, self.noun_ty:Pointer(0), self.noun_ty:Pointer(0)}, 3, false)
     print(self.cell_ty)
     print("registered %struct.cell")
 
-    -- i1 set == cell, not set == atom
+    self.core_ty = ll.LLVMStructCreateNamed(self.C,"struct.core")
+    -- tag, context, vtable
+    ll.LLVMStructSetBody(self.core_ty, { i8, self.noun_ty:Pointer(0), i8p }, 3, false)
+
+    -- 0 == atom, 1 == cell, 2 == core
     -- does this break with 64bit?
-    ll.LLVMStructSetBody(self.noun_ty, { i1, i8p, i8p }, 1, false)
+    ll.LLVMStructSetBody(self.noun_ty, { i8, i8p, i8p }, 1, false)
     print(self.noun_ty)
 end
 
@@ -90,7 +96,7 @@ function jit:make_noun(variant,noun,noun2)
         -- is an atom
         local n_p = self.B:Malloc(self.noun_ty, "noun.atom")
         local n = self.B:InBoundsGEP(n_p, { zero, zero }, 2, "noun.atom.tag")
-        self.B:Store(ll.ConstInt(i1, 0), n)
+        self.B:Store(ll.ConstInt(i8, 0), n)
         print("stored noun.atom tag")
         local atom = self.B:BitCast(n_p, self.atom_ty:Pointer(0), "noun.atom.cast")
         local val = self.B:InBoundsGEP(atom, { zero, one }, 2, "noun.atom.value")
@@ -99,7 +105,7 @@ function jit:make_noun(variant,noun,noun2)
     else
         local n_p = self.B:Malloc(self.noun_ty, "noun.cell")
         local n = self.B:InBoundsGEP(n_p, { zero, zero }, 2, "noun.cell.tag")
-        self.B:Store(ll.ConstInt(i1, 1), n)
+        self.B:Store(ll.ConstInt(i8, 1), n)
         print("stored noun.cell tag")
         local cell = self.B:BitCast(n_p, self.cell_ty:Pointer(0), "noun.cell.cast")
         local val = self.B:InBoundsGEP(cell, { zero, one }, 2, "noun.cell.left")
@@ -108,6 +114,25 @@ function jit:make_noun(variant,noun,noun2)
         self.B:Store(noun2, val)
         return n_p
     end
+end
+
+function jit:make_core(coil)
+    print("making core")
+    print(core_ty)
+    local n_p = self.B:Malloc(self.noun_ty, "noun.core")
+    local n = self.B:InBoundsGEP(n_p, { zero, zero }, 2, "noun.core.tag")
+    self.B:Store(ll.ConstInt(i8, 2), n)
+    print("stored noun.core tag")
+    local core = self.B:BitCast(n_p, self.core_ty:Pointer(0), "noun.core.cast")
+    local val = self.B:InBoundsGEP(core, { zero, one }, 2, "noun.core.context")
+    -- TODO: reference counting
+    print(self.context.v,val)
+    table.print(self.context)
+    print(self.B:Store(self.context.v, val))
+    local val = self.B:InBoundsGEP(core, { zero, ll.ConstInt(i32, 2) }, 2, "noun.core.coil")
+    local coil_cast = self.B:BitCast(coil, i8p, "noun.core.coil.cast")
+    self.B:Store(coil_cast, val)
+    return n_p
 end
 
 function jit:as_atom(noun)
@@ -125,33 +150,41 @@ function jit:as_cell(noun)
     table.print(noun)
     local cell_p = self.B:BitCast(noun, self.cell_ty:Pointer(0), "as_cell.cellptr")
     local cell = self.B:Load(cell_p, "as_cell.cell")
-    local left = self.B:ExtractValue(cell, 1, "as_atom.left")
-    local right = self.B:ExtractValue(cell, 2, "as_atom.left")
+    local left = self.B:ExtractValue(cell, 1, "as_cell.left")
+    local right = self.B:ExtractValue(cell, 2, "as_cell.right")
     return left, right
 end
+
+function jit:as_core(noun)
+    table.print(noun)
+    local core_p = self.B:BitCast(noun, self.core_ty:Pointer(0), "as_core.coreptr")
+    local core = self.B:Load(core_p, "as_core.core")
+    local context = self.B:ExtractValue(core, 1, "as_core.context")
+    local coil = self.B:ExtractValue(core, 2, "as_core.coil")
+    return context, coil
+end
+
 
 function jit:lark(context, axis)
     if axis == 1 then
         table.print(context)
         return context
     elseif axis % 2 == 0 then
-        expect(context.t.tag,"cell")
         print("go left")
         table.print(context)
-        local left, right = self:as_cell(context.v)
+        local left, right = self:as_cell(context)
         print("went left")
-        return self:lark(types.vase(left, context.t.left), axis / 2)
+        return self:lark(left, axis / 2)
     else
-        expect(context.t.tag,"cell")
         print("go right")
-        local left, right = self:as_cell(context.v)
+        local left, right = self:as_cell(context)
         print("went right")
-        return self:lark(types.vase(right, context.t.right), (axis - 1) / 2)
+        return self:lark(right, (axis - 1) / 2)
     end
 end
 
 function jit:insert_block(name)
-    local block = self.main:AppendBasicBlock(name)
+    local block = self.func:AppendBasicBlock(name)
     self.B:PositionAtEnd(block)
     self.block = block
     return block
@@ -163,18 +196,16 @@ function jit:repr(noun)
             if type(noun.value) == "number" then
                 local n = self
                 local n = self:make_noun("atom",ll.ConstInt(i32, noun.value))
+                print(n)
                 assert(n)
-                return types.vase(n,
-                    types.atom { value = noun.value, aura = "d", example = noun.value })
+                return n
             elseif noun.value.tag == "lark" then
-                return self:lark(self.context, noun.value.axis)
+                return self:lark(self.context.v, noun.value.axis)
             end
             error("emit types.val."..noun.value.tag)
         end,
         ["number"] = function()
             return self:repr(ast.val { value = noun.value })
-            --return types.vase(ll.ConstInt(i32, noun.value),
-            --    types.atom { value = noun.value, aura = "d", example = noun.value })
         end
     }
     if tab[noun.tag] then
@@ -182,6 +213,62 @@ function jit:repr(noun)
     else
         error("can't repr noun."..nount.tag)
     end
+end
+
+function jit:llvm_core(core)
+    local name = "<"
+    for i,v in next,core.arms do
+        name = name .. v[1]
+    end
+    name = name ..">"
+    print(name)
+    if self.cores[name] then
+        print("core exists for "..name)
+        return self.cores[name]
+    end
+    print("building core "..name)
+
+    -- we have to construct the vtable with stubs first, so that when generating the arms
+    -- the function calls resolve. messy.
+
+    local coil_ty = {}
+    local coil = {}
+    for _,v in next,core.arms do
+        print("initializing arm "..v[1])
+        local arm_ty = ll.FunctionType(self.noun_ty:Pointer(0), { self.noun_ty:Pointer(0) }, 1, false)
+        table.insert(coil_ty, arm_ty:Pointer(0))
+        table.insert(coil, self.M:AddFunction("core."..name.."."..v[1], arm_ty))
+    end
+
+    local coil_struct_ty = self.C:StructType(coil_ty, #coil_ty, false)
+    self.cores[name] = self.M:AddGlobal(coil_struct_ty, "struct.core."..name)
+    local coil_struct = self.C:ConstStruct(coil, #coil, false)
+    ll.LLVMSetInitializer(self.cores[name], coil_struct)
+
+    for i,v in next,core.arms do
+        print("finalizing arm "..core.arms[i][1])
+        self:build_arm(coil[i], core.arms[i][2], core)
+    end
+
+    return self.cores[name]
+end
+
+function jit:build_arm(arm_func, arm_body, core)
+    print("func",arm_func)
+    local func = self.func
+    local block = self.block
+
+    self.func = arm_func
+    local body = self:insert_block("entry")
+    local old_context = self.context
+    self.context = types.vase(self.func:GetParam(0), types.type_ast(self.context, core))
+    local last = self:emit(arm_body)
+    self.B:Ret(last)
+
+    self.context = old_context
+    self.func = func
+    self.block = block
+    self.B:PositionAtEnd(block)
 end
 
 function jit:emit(ast)
@@ -196,28 +283,53 @@ function jit:emit(ast)
             local left = self:emit(ast.left)
             local right = self:emit(ast.right)
             print("made left and right")
-            local c = self:make_noun("cell",left.v,right.v)
+            local c = self:make_noun("cell",left,right)
 
-            return types.vase(
-                c,
-                types.cell {
-                    left = types.type_ast(self.context, ast.left),
-                    right = types.type_ast(self.context, ast.right),
-                }
-            )
+            return c
         end,
         ["fetch"] = function()
+            print("the hell")
+            table.print(ast)
             local axis = types.axis_of(self.context.t, ast.bind)
-            table.print(axis)
+            table.print(self.context)
             if axis[1] == "face" then
                 -- why does axis_of give me a type with the face still on?
-                return types.vase(self:lark(self.context, axis[2]).v, axis[3].value)
+                return self:lark(self.context.v, axis[2]).v
+            else
+                local core_p = self:lark(self.context.v, axis[4])
+                print("CORE",core_p)
+                local name = "<"
+                for i,v in next,axis[5].arms do
+                    name = name..v[1]
+                end
+                name = name..">"
+                print(name)
+                local coil_ty = self.cores[name]
+                assert(coil_ty)
+                local context, coil = self:as_core(core_p)
+                local coil_cast = self.B:BitCast(coil, coil_ty:TypeOf(), "fetch.coil.cast")
+                local slot = nil
+                for i,v in next,axis[5].arms do
+                    if v[1] == ast.bind then
+                        slot = i - 1
+                        break
+                    end
+                end
+                assert(slot)
+                local vtable = self.B:Load(coil_cast, "fetch.coil")
+                print(vtable)
+                local func_ptr = self.B:ExtractValue(vtable, slot, "fetch.coil.fetch")
+                print("made func_ptr")
+                --self.context = types.vase(core_p, axis[5])
+                local ret = self.B:Call(func_ptr, { core_p }, 1, "fetch.coil.call")
+                print("made call!!!!")
+                return ret
             end
             error()
         end,
         ["in"] = function()
             local c = self:emit(ast.context)
-            self.context = c
+            self.context = types.vase(c, types.type_ast(self.context, ast.context))
             return self:emit(ast.code)
         end,
         ["face"] = function()
@@ -231,20 +343,20 @@ function jit:emit(ast)
             local noun = self:emit(ast.atom)
             print("emitted noun")
             table.print(noun)
-            local bump_temp = noun.v
+            local bump_temp = noun
             print("bump_temp",bump_temp)
             --[[local bump = self.B:Add(bump_temp, ll.ConstInt(i32, 1), "bump")
             local bumped = self.B:Malloc(i32, "atom.bumped")
             self.B:Store(bump, bumped)]]
             print("emitted bump")
-            return types.vase(bump_temp, types.type_ast(self.context, ast))
+            return bump_temp
         end,
         ["if"] = function()
             print("emit if")
             local cond = self:emit(ast.cond)
             assert(cond)
             print("emitted cond")
-            local cond_temp = self:as_atom(cond.v)
+            local cond_temp = self:as_atom(cond)
             local cond_comp = self.B:ICmp(ll.IntEQ, cond_temp, ll.ConstInt(i32, 0), "if.cond.comp")
             print("emitted comparison")
 
@@ -260,14 +372,14 @@ function jit:emit(ast)
             local true_block = self:insert_block "true_block"
             local if_true = self:emit(ast.if_true)
             assert(if_true)
-            self.B:Store(if_true.v, ret)
+            self.B:Store(if_true, ret)
             self.B:Br(end_block)
             print("emitted if_true")
 
             local false_block = self:insert_block "false_block"
             local if_false = self:emit(ast.if_false)
             assert(if_false)
-            self.B:Store(if_false.v, ret)
+            self.B:Store(if_false, ret)
             self.B:Br(end_block)
             print("emitted if_false")
 
@@ -278,7 +390,14 @@ function jit:emit(ast)
 
             self.block = end_block
             self.B:PositionAtEnd(end_block)
-            return types.vase(ret_val, types.type_ast(self.context, ast))
+            return ret_val
+        end,
+        ["core"] = function()
+            -- TODO: hashing cores for uniqueness
+            local core_ty = self:llvm_core(ast)
+            assert(core_ty)
+            local core = self:make_core(core_ty)
+            return core
         end
     }
     if tab[ast.tag] then
@@ -288,12 +407,12 @@ function jit:emit(ast)
     end
 end
 
-function jit:print(noun)
+function jit:print(noun,noun_ty)
     tab = {
         ["atom"] = function()
             print("print atom")
             table.print(noun)
-            local atom = self:as_atom(noun.v)
+            local atom = self:as_atom(noun)
             print("print as_atom")
             table.print(atom)
             self.B:Call(self.printf, { self.M:AddAlias(i8p, self.atom_format, 'atom_format'), atom }, '_')
@@ -306,15 +425,15 @@ function jit:print(noun)
             local right_ptr = self.B:ExtractValue(c, 2, "right_ptr")
             local right = self.B:Load(right_ptr,"right")
             ]]
-            local left, right = self:as_cell(noun.v)
+            local left, right = self:as_cell(noun)
             function emit_print(str)
                 self.B:Call(self.printf, { str }, '_')
             end
             local s = self.cell_format
             emit_print(s[1])
-            self:print(types.vase(left, noun.t.left))
+            self:print(left, noun_ty.left)
             emit_print(s[2])
-            self:print(types.vase(right, noun.t.right))
+            self:print(right, noun_ty.right)
             emit_print(s[3])
             print("extracted left and right")
         end,
@@ -323,26 +442,40 @@ function jit:print(noun)
             table.print(noun)
             local binding = self.B:GlobalStringPtr(noun.t.bind.."=", "binding."..noun.t.bind)
             self.B:Call(self.printf, { binding }, '_')
-            self:print(types.vase(noun.v, noun.t.value))
+            self:print(noun, noun_ty.value)
         end,
         ["fork"] = function()
             -- fuq. need to emit runtime test for nest for this.
             table.print(noun)
-            local ty = noun.v:TypeOf()
+            local ty = noun:TypeOf()
             print(ty, ty:GetStructName(), "a")
             --if ty:GetStructName() == "" then
                 -- HORRIBLE HACK
-                noun = types.vase(noun.v, types.atom { value = 0, aura = "", example = 0 })
+                noun_ty = types.atom { value = 0, aura = "", example = 0 }
                 return tab["atom"]()
             --end
             --error()
+        end,
+        ["core"] = function()
+            table.print(noun)
+            local core_str = "<"
+            for i,v in next,noun.t.arms do
+                core_str = core_str..i
+            end
+            core_str = core_str..">"
+            local core_fmt = self.B:GlobalStringPtr("core."..core_str, "format."..core_str)
+            self.B:Call(self.printf, { core_fmt }, '_')
         end
     }
-    if tab[noun.t.tag] then
-        return tab[noun.t.tag]()
+    if not noun_ty or not noun_ty.tag then
+        table.print(noun)
+        error("attempted to print nil value")
+    end
+    if tab[noun_ty.tag] then
+        return tab[noun_ty.tag]()
     else
         table.print(noun)
-        error("can't print noun."..noun.t.tag)
+        error("can't print noun."..noun_ty.tag)
     end
 end
 
@@ -369,11 +502,11 @@ function jit:run(ast,context)
     --local hello_str = self.B:GlobalStringPtr("Hello world!", 'main.str')
     --self.B:Call(self.puts, { self.M:AddAlias(i8p, hello_str, 'oi?') }, '_')
 
-    self.context = types.vase(self:repr(context.v).v,context.t)
+    self.context = types.vase(self:repr(context.v), context.t)
     table.print(self.context)
     ret = self:emit(ast)
     assert(ret)
-    self:print(ret)
+    self:print(ret, types.type_ast(self.context, ast))
     self.B:Call(self.printf, { self.newline }, '_')
     self.B:Ret(ll.ConstInt(i32,0))
 

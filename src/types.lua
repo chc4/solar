@@ -56,9 +56,15 @@ function types.axis_of(context,bind,axis)
         end
     elseif context.tag == "core" then
         -- TODO: allow indexing into core sample
-        local arm = context.arms[bind]
+        local arm = nil
+        for _,v in next,context.arms do
+            if v[1] == bind then
+                arm = v
+            end
+        end
+        assert(arm)
         if not arm then return nil end
-        return {"core",arm[1],arm[2],axis,context}
+        return {"core",arm[2],arm[3],axis,context}
     end
     table.print(context)
     error("can't find "..bind.." in context")
@@ -110,7 +116,7 @@ function types.type_ast(context,ast)
                 --    wet cores to be implemented at callsite.)
                 -- ]]
                 arms = {
-                    [arm[1]] = {2,arm[2]}
+                    {arm[1],2,arm[2]}
                 }
             else
                 for i,arm in next,ast.arms do
@@ -120,7 +126,7 @@ function types.type_ast(context,ast)
                     else
                         axis = 6 * (math.pow(2, (i + 1))) - 1
                     end
-                    arms[arm[1]] = {axis,arm[2]}
+                    arms[i] = {arm[1],axis,arm[2]}
                 end
             end
             return types.core {

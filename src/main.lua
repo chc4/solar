@@ -47,6 +47,26 @@ function test_if()
     }
 end
 
+function test_core()
+    return ast.core {
+        arms = {
+            {"a", ast.val { value = 1 }}
+        }
+    }
+end
+
+function test_arm()
+    return ast["in"] {
+        context = ast.core {
+            arms = {
+                {"a", ast.val { value = 2 }},
+                {"b", ast.val { value = 3 }}
+            }
+        },
+       code = ast.fetch { bind = "a" }
+   }
+end
+
 function testcase_one()
     return ast.let {
         bind = "a",
@@ -89,7 +109,7 @@ end
 
 local input = io.open("test.sol","r"):read("*a")
 
-local tree = test_lark()
+local tree = testcase_three()
 tree = ast.open(tree)
 
 local context_vase = types.vase(context.new(), types.face { bind = "solar", value = types.atom {value=0, aura = "z", example = 0} })
