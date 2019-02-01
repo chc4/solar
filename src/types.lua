@@ -54,6 +54,29 @@ function types.axis_of(context,bind,axis)
         else
             return types.axis_of(context.right,bind,axis*2+1)
         end
+    elseif context.tag == "fork" then
+        local r = nil
+        local r_fork = {}
+        for i,v in next,context.variants do
+            local v_axis = types.axis_of(v, bind, axis)
+            if not r then
+                print("initial fork find set")
+                table.print(v_axis)
+                assert(v_axis[1] == "face")
+                r = v_axis
+                table.insert(r_fork, v_axis[3])
+            else
+                print("testing fork find variant")
+                table.print(v_axis)
+                -- TODO: checking core fork arm fetches?
+                assert(v_axis[1] == "face")
+                assert(v_axis[2] == r[2])
+                table.insert(r_fork, v_axis[3])
+            end
+        end
+        table.print(r_fork)
+        r[3] = types.fork { variants = r_fork }
+        return r
     elseif context.tag == "core" then
         -- TODO: allow indexing into core sample
         local arm = nil

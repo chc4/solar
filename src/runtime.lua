@@ -83,7 +83,6 @@ function runtime.eval(context, val)
             print("found "..val.bind.." at "..ax[2])
             if ax[1] == "face" then
                 -- fetch via axis
-                table.print(ax)
                 return runtime.fetch(context.v,ax[2])
             elseif ax[1] == "core" then
                 -- resolves to an arm - need to call .*[arm core]

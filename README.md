@@ -2,7 +2,7 @@
 
 >Over his palm hovered the shards that had once been his spectacles, and though the enchantments on them were gone there was something a great deal more dangerous to be glimpsed in them now. The last thing they’d witnessed was the Summer sun in the fullness of its glory, and that light was still alive in the glass. It might never leave.
 
->                                          - A Practical Guide To Evil
+                                          - A Practical Guide To Evil
 
 gonna make a perfect programming language. gonna make it with imperfect code.
 
@@ -10,9 +10,10 @@ gonna make a perfect programming language. gonna make it with imperfect code.
 
 # progress
 
-i started emitting llvm ir. it can print values and that's about it, unless this readme gets out of date in which case it can do more. run it like `lua src/main.lua && lli output.ll`.
+it can build values, declare variables, do `if` statements, define cores, and evaluate arms of cores.
+it either emits llvm (run it like `lua src/main.lua && lli output.ll`) or does a dumb tree walking interpreter.
 
-todo is basically "add flow control back in, figure out how the hell cores will work via llvm, add mutations".
+todo is basically "add fetching through core contexts, add functions, add defered types, add mutations" and then hopefully i can evaluate factorials or whatever. also make the type system not utter trash.
 
 # building
 

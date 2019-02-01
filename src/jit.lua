@@ -356,7 +356,7 @@ function jit:emit(ast)
             assert(cond)
             print("emitted cond")
             local cond_temp = self:as_atom(cond)
-            local cond_comp = self.B:ICmp(ll.IntEQ, cond_temp, ll.ConstInt(i32, 0), "if.cond.comp")
+            local cond_comp = self.B:ICmp(ll.IntEQ, cond_temp, ll.ConstInt(i32, 1), "if.cond.comp")
             print("emitted comparison")
 
             -- TODO: switch this to use "current function" instead of main

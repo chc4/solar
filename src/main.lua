@@ -47,6 +47,17 @@ function test_if()
     }
 end
 
+function test_fork_context()
+    return ast["in"] {
+        context = ast["if"] {
+            cond = ast.val { value = 1 },
+            if_true = ast.face { bind = "a", value = ast.val { value = 2 } },
+            if_false = ast.face { bind = "a", value = ast.val { value = 3 } },
+        },
+        code = ast.fetch { bind = "a" }
+    }
+end
+
 function test_core()
     return ast.core {
         arms = {
@@ -120,7 +131,7 @@ end
 
 local input = io.open("test.sol","r"):read("*a")
 
-local tree = test_fetch()
+local tree = test_fork_context()
 tree = ast.open(tree)
 
 local context_vase = types.vase(context.new(), types.face { bind = "solar", value = types.atom {value=0, aura = "z", example = 0} })
@@ -128,7 +139,7 @@ local ty = types.type_ast(context_vase,tree)
 print("RET TYPE")
 table.print(ty)
 
-local use_llvm = false
+local use_llvm = true
 if not use_llvm then
     local eval = rt.eval(context_vase, tree)
     table.print(eval)
