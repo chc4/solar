@@ -51,9 +51,8 @@ function value.repr(context,val,arm)
                 for _,arm in next,val.arms do
                     local twig = arm[2]
                     expect_type(twig,"twig","ast",delay(table.print,twig))
-                    -- i should be emitting nock right here, but arent
-                    -- just emit ast and dont allow inspection
-                    -- how will this work with llvm?
+                    -- we're emitting the ast as the other node
+                    -- make sure no one can read core.right!
                     if coil == nil then
                         coil = twig
                     else

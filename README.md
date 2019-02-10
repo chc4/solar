@@ -1,12 +1,11 @@
 # solar
 
 >Over his palm hovered the shards that had once been his spectacles, and though the enchantments on them were gone there was something a great deal more dangerous to be glimpsed in them now. The last thing they’d witnessed was the Summer sun in the fullness of its glory, and that light was still alive in the glass. It might never leave.
-
-                                          - A Practical Guide To Evil
+>                                          - A Practical Guide To Evil
 
 gonna make a perfect programming language. gonna make it with imperfect code.
 
-`design` has rambling about design and motivation, but tldr its immutable statically typed lua
+`design` has rambling about design and motivation and problems, but tldr its immutable statically typed lua
 
 # progress
 

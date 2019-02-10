@@ -37,7 +37,7 @@ function types.axis_of(context,bind,axis)
     axis = axis or 1
     print("bind:",bind)
     table.print(context)
-    assert(context.type == "types")
+    expect_type(context, "context", "types")
     if bind == 1 then
         return {"face",axis,context}
     end
@@ -96,14 +96,42 @@ function types.axis_of(context,bind,axis)
         end
     end
     table.print(context)
-    error("can't find "..bind.." in context")
+    print("can't find "..bind.." in context")
+    return nil
 end
 
 -- this is where profunctor lenses would come in use
--- bump wants to increment edge nodes but keep structure
--- %= wants to replace axises but keep structure
--- probably have to refactor this so it can be used for runtime?
-function types.replace(context,pred,axis,f)
+-- TODO: do we want to allow axis changes? probably not?
+function types.change(obj,bind,value)
+    expect_type(obj, "obj", "types")
+    local tab = {
+        ["face"] = function()
+            table.print(obj)
+            if obj.bind == bind then
+                return types.face { bind = bind, value = value }
+            else
+                obj.value = types.change(obj.value, bind, value)
+                return obj
+            end
+        end,
+        ["value"] = function()
+            return obj
+        end,
+        ["cell"] = function()
+            -- TODO: make this better? return obj,changed? from types.change instead
+            if types.axis_of(obj.left, bind) then
+                obj.left = types.change(obj.left, bind, value)
+            elseif types.axis_of(obj.right, bind) then
+                obj.right = types.change(obj.right, bind, value)
+            end
+            return obj
+        end
+    }
+    if tab[obj.tag] then
+        return tab[obj.tag]()
+    else
+        error("cant change "..obj.tag)
+    end
 end
 
 function types.lark(context,axis)
@@ -236,6 +264,22 @@ function types.type_ast(context,ast)
             local at = types.type_ast(context, ast.atom)
             expect(types.nest(at,types.atom({value = 0,aura = "t",example = 0})))
             return at
+        end,
+        ["change"] = function()
+            local obj = table.copy(types.type_ast(context, ast.value))
+            table.print(obj)
+            -- TODO: check that no axises are within changed axises!
+            -- change [a=1 c=4], a=[2 b=2], b=3 should fail!
+            for _,patch in next,ast.changes do
+                local ax = types.axis_of(obj, patch[1])
+                expect(ax ~= nil, "change "..patch[1].." is nil")
+                expect(ax[1] == "face", "change "..patch[1].." cant change arms")
+                local ty = types.type_ast(context, patch[2])
+                expect(ty ~= nil, "invalid type for "..patch[1])
+                obj = types.change(obj, patch[1], ty)
+            end
+            table.print(obj)
+            return obj
         end
     }
     if not tab[ast.tag] then

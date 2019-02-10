@@ -7,12 +7,13 @@ make_ast = enum("ast")
 ast.let = make_ast("let", {"bind", "value", "rest"})
 ast.face = make_ast("face", {"bind","value"})
 ast["if"] = make_ast("if", {"cond","if_true", "if_false"})
-ast.core = make_ast("core",{"arms"}) -- arms are {"name",twig}
+ast.core = make_ast("core",{"arms"}) -- arms are {"name", ast}
 ast.val = make_ast("val", {"value"})
 ast.fetch = make_ast("fetch",{"bind"})
 ast.cons = make_ast("cons",{"left","right"})
 ast["in"] = make_ast("in",{"context","code"})
 ast["bump"] = make_ast("bump",{"atom"})
+ast["change"] = make_ast("change", {"value", "changes"}) -- changes are {"binding", ast}
 
 function open_node(tag, members)
     return function(node)
@@ -58,11 +59,21 @@ function ast.open(node)
         ["face"] = open_node("face",{"value"}),
         ["core"] = function()
             for i,arm in next,node.arms do
-                node.arms[i] = {arm[1],ast.open(arm[2])}
+                node.arms[i] = {arm[1], ast.open(arm[2])}
             end
             return node
         end,
-        ["if"] = open_node("if",{"cond","if_true","if_false"})
+        ["if"] = open_node("if",{"cond","if_true","if_false"}),
+        ["change"] = function()
+            local changes = {}
+            for _,v in next,node.changes do
+                table.insert(changes, {v[1], ast.open(v[2])})
+            end
+            return ast.change {
+                value = ast.open(node.value),
+                changes = changes
+            }
+        end
     }
     if not tab[node.tag] then
         error("cant open `"..node.tag.."`")

@@ -23,6 +23,18 @@ function runtime.fetch(context,axis)
     end
 end
 
+function runtime.change(context, axis, val)
+    if axis == 1 then
+        return val
+    elseif axis % 2 == 0 then
+        context.left = runtime.change(context,axis / 2, val)
+        return context
+    else
+        context.right = runtime.fetch(context,(axis - 1) / 2, val)
+        return context
+    end
+end
+
 function runtime.eval(context, val)
     expect_type(context,"context","vase")
     expect_type(val,"val","ast")
@@ -100,6 +112,17 @@ function runtime.eval(context, val)
             local at = runtime.eval(context, val.atom)
             expect(at.tag == "number","bump an atom not "..at.tag)
             return value.number({value = 1+at.value})
+        end,
+        ["change"] = function()
+            local obj = table.copy(runtime.eval(context, val.value))
+            local ty = types.type_ast(context, val.value)
+            -- TODO: this is wrong! ty should be updated each time
+            for _,patch in next,val.changes do
+                local ax = types.axis_of(ty, patch[1])
+                local val = runtime.eval(context, patch[2])
+                obj = runtime.change(obj, ax[2], val)
+            end
+            return obj
         end
     });
     table.print(val)

@@ -56,3 +56,31 @@ ended up dumping rust code ('''tulpa''') and rewrote everything in lua in like 1
 making a compiler in lua sounds like one of those things that makes you say "dont do that you moron" but lets do it anyways
 there's llvm lua bindings! they looks surprisingly good! wtf! it even has api support for jit!
 i forgot how annoying lpeg was though so ill write the parser later - just hardcode asts for now
+
+how do we typecheck recursive functions?
+here is `add`, which is represented as core with an arm `$` and [a=0 b=0 .] context
+|=  {a/@ b/@}
+  ?: =(b 0)
+    a
+  $(a +(a), b (dec b))
+
+naive will just typecheck infinitely: typing `$` will require you to type `$`
+
+infinite loops have type `!!` aka void, which is bottom
+forks between any value and void is just the value
+type then becomes fork(@, type_ast($ with changes)), detect loop, fork(@ !!), @.
+
+is there anything this doesn't work for? mutually recursive functions?
+`=<  a  =+  foo=0  |%  ++  a  ?~  foo  a(foo [1 2])  foo  --` will actually give you "failed to compute type" for hoon!
+
+checked - recursive functions actually just leave %holds for the recursive calls without collapsing to void,
+and then nest/fish/cast evaluate the holds later. is this nessacary? in practice doesn't matter since
+recursive functions always come with a typecast?
+
+what about `gulf`, which builds lists from a to b?
+|=  {a/@ b/@}
+  ?:  =(a +(b))
+    ~
+  [a $(a +(a))]
+just bubbling up a void would type this as `$~`, which isn't enough - you could transmute it into a (list ^) and break stuff.
+hoon types this as `#1.?($~ {@ #1})` - either `$~` or an atom cons with something.

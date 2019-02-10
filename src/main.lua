@@ -95,6 +95,24 @@ function test_core_context()
     }
 end
 
+function test_change()
+    -- TODO: change? hoon has `change` take a binding and fetches+updates at once.
+    -- this would let you do `change [b=1 .], b 1` but would need two-pass: initial
+    -- memcpy of root, then update changed nodes.
+    -- might change "bindings" to be ast.vals? this doesnt let you do `change a, . 2`
+    return ast.let {
+        bind = "a",
+        value = ast.cons {
+            left = ast.face { bind = "b", value = ast.val { value = 1 } },
+            right = ast.face { bind = "c", value = ast.val { value = 2 } },
+        },
+        rest = ast.cons {
+            left = ast.fetch { bind = "a" },
+            right = ast.change { value = ast.fetch { bind = "a" }, changes = {{"b", ast.val { value = 3 }}} },
+        }
+    }
+end
+
 function testcase_one()
     return ast.let {
         bind = "a",
@@ -137,7 +155,7 @@ end
 
 local input = io.open("test.sol","r"):read("*a")
 
-local tree = test_core_context()
+local tree = test_change()
 tree = ast.open(tree)
 
 local context_vase = types.vase(context.new(), types.face { bind = "solar", value = types.atom {value=0, aura = "z", example = 0} })
@@ -145,7 +163,7 @@ local ty = types.type_ast(context_vase,tree)
 print("RET TYPE")
 table.print(ty)
 
-local use_llvm = true
+local use_llvm = false
 if not use_llvm then
     local eval = rt.eval(context_vase, tree)
     table.print(eval)
