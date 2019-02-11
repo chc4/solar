@@ -23,14 +23,15 @@ function runtime.fetch(context,axis)
     end
 end
 
-function runtime.change(context, axis, val)
-    if axis == 1 then
-        return val
-    elseif axis % 2 == 0 then
-        context.left = runtime.change(context,axis / 2, val)
+function runtime.change(context, changes, axis)
+    local axis = axis or 1
+    if changes[axis] then
+        return changes[axis]
+    elseif context.tag == "cell" then
+        context.left = runtime.change(context.left, changes, axis * 2)
+        context.right = runtime.change(context.right, changes, (axis * 2) + 1)
         return context
     else
-        context.right = runtime.fetch(context,(axis - 1) / 2, val)
         return context
     end
 end
@@ -117,11 +118,15 @@ function runtime.eval(context, val)
             local obj = table.copy(runtime.eval(context, val.value))
             local ty = types.type_ast(context, val.value)
             -- TODO: this is wrong! ty should be updated each time
+            local changes = {}
             for _,patch in next,val.changes do
                 local ax = types.axis_of(ty, patch[1])
                 local val = runtime.eval(context, patch[2])
-                obj = runtime.change(obj, ax[2], val)
+                --obj = runtime.change(obj, ax[2], val)
+                expect(changes[ax[2]] == nil, "duplicate change axis!!!")
+                changes[ax[2]] = val
             end
+            obj = runtime.change(obj, changes)
             return obj
         end
     });

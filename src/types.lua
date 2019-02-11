@@ -102,28 +102,26 @@ end
 
 -- this is where profunctor lenses would come in use
 -- TODO: do we want to allow axis changes? probably not?
-function types.change(obj,bind,value)
+function types.change(obj,changes)
     expect_type(obj, "obj", "types")
     local tab = {
         ["face"] = function()
             table.print(obj)
-            if obj.bind == bind then
-                return types.face { bind = bind, value = value }
+            if changes[obj.bind] then
+                local v = types.face { bind = obj.bind, value = changes[obj.bind] }
+                changes[obj.bind] = nil
+                return v
             else
-                obj.value = types.change(obj.value, bind, value)
+                obj.value = types.change(obj.value, changes)
                 return obj
             end
         end,
-        ["value"] = function()
+        ["atom"] = function()
             return obj
         end,
         ["cell"] = function()
-            -- TODO: make this better? return obj,changed? from types.change instead
-            if types.axis_of(obj.left, bind) then
-                obj.left = types.change(obj.left, bind, value)
-            elseif types.axis_of(obj.right, bind) then
-                obj.right = types.change(obj.right, bind, value)
-            end
+            obj.left = types.change(obj.left, changes)
+            obj.right = types.change(obj.right, changes)
             return obj
         end
     }
@@ -270,14 +268,17 @@ function types.type_ast(context,ast)
             table.print(obj)
             -- TODO: check that no axises are within changed axises!
             -- change [a=1 c=4], a=[2 b=2], b=3 should fail!
+            local changes = {}
             for _,patch in next,ast.changes do
                 local ax = types.axis_of(obj, patch[1])
                 expect(ax ~= nil, "change "..patch[1].." is nil")
                 expect(ax[1] == "face", "change "..patch[1].." cant change arms")
                 local ty = types.type_ast(context, patch[2])
                 expect(ty ~= nil, "invalid type for "..patch[1])
-                obj = types.change(obj, patch[1], ty)
+                changes[ patch[1] ] = ty
+                --obj = types.change(obj, patch[1], ty)
             end
+            obj = types.change(obj, changes)
             table.print(obj)
             return obj
         end

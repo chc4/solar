@@ -397,6 +397,17 @@ function jit:emit(ast)
             assert(core_ty)
             local core = self:make_core(core_ty)
             return core
+        end,
+        ["change"] = function()
+            local val = self:emit(ast.value)
+            local ty = types.type_ast(ast.value)
+            -- TODO: this is wrong! ty should be updated each time
+            for _,patch in next,ast.changes do
+                local ax = types.axis_of(ty, patch[1])
+                local val = self:emit(context, patch[2])
+                obj = self:change(obj, ax[2], val)
+            end
+            return obj
         end
     }
     if tab[ast.tag] then
