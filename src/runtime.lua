@@ -26,13 +26,19 @@ end
 function runtime.change(context, changes, axis)
     local axis = axis or 1
     if changes[axis] then
-        return changes[axis]
+        return changes[axis],true
     elseif context.tag == "cell" then
-        context.left = runtime.change(context.left, changes, axis * 2)
-        context.right = runtime.change(context.right, changes, (axis * 2) + 1)
-        return context
+        local l,flag = runtime.change(context.left, changes, axis * 2)
+        if flag then
+            context.left = l
+        end
+        local r,flag2 = runtime.change(context.right, changes, (axis * 2) + 1)
+        if flag2 then
+            context.right = r
+        end
+        return context, (flag or flag2)
     else
-        return context
+        return context,false
     end
 end
 
@@ -117,7 +123,7 @@ function runtime.eval(context, val)
         ["change"] = function()
             local obj = table.copy(runtime.eval(context, val.value))
             local ty = types.type_ast(context, val.value)
-            -- TODO: this is wrong! ty should be updated each time
+
             local changes = {}
             for _,patch in next,val.changes do
                 local ax = types.axis_of(ty, patch[1])

@@ -59,6 +59,9 @@ function jit:add_intrinsics()
     local printf_ty = ll.FunctionType (i32, { i8p }, 2, true)
     self.printf = self.M:AddFunction("printf", printf_ty)
 
+    local memcpy_ty = ll.FunctionType (i32, {i8p, i8p}, 2)
+    self.memcpy = self.M:AddFunction("llvm.memcpy.p0i8.p0i8.i32", memcpy_ty)
+
     self.atom_format = self.B:GlobalStringPtr("%d", "main.atom_format")
     self.cell_format = {}
     for i,v in next,{"["," ","]"} do
@@ -135,6 +138,14 @@ function jit:make_core(coil)
     return n_p
 end
 
+function jit:copy(noun)
+    local new_p = self.B:Malloc(self.noun_ty, "noun.atom")
+    local size = ll.SizeOf(self.noun_ty)
+    expect(self.memcpy, "expected memcpy")
+    self.B:Call(self.memcpy, { noun, new_p, size, zero }, "_")
+    return new_p
+end
+
 function jit:as_atom(noun)
     -- TODO: emit assert for tag
     table.print(noun)
@@ -182,6 +193,28 @@ function jit:lark(context, axis)
         return self:lark(right, (axis - 1) / 2)
     end
 end
+
+-- TODO: make this a runtime function instead of compile time emitting navigation?
+-- test to see how bloated it makes binaries
+function jit:change(context, ty, changes, axis)
+    local axis = axis or 1
+    if changes[axis] then
+        return changes[axis],true
+    elseif ty.tag == "cell" then
+        local left,right = self:as_cell(context)
+        local l,flag = self:change(left, ty.left, changes, axis * 2)
+        local r,flag2 = self:change(right, ty.right, changes, (axis * 2) + 1)
+
+        if flag or flag2 then
+            context = self:make_noun("cell", l, r)
+        end
+        return context, (flag or flag2)
+    else
+        return context,false
+    end
+end
+
+
 
 function jit:insert_block(name)
     local block = self.func:AppendBasicBlock(name)
@@ -400,14 +433,17 @@ function jit:emit(ast)
         end,
         ["change"] = function()
             local val = self:emit(ast.value)
-            local ty = types.type_ast(ast.value)
-            -- TODO: this is wrong! ty should be updated each time
+            -- TODO: reference counting!
+            local ty = types.type_ast(self.context, ast.value)
+            local changes = {}
             for _,patch in next,ast.changes do
                 local ax = types.axis_of(ty, patch[1])
-                local val = self:emit(context, patch[2])
-                obj = self:change(obj, ax[2], val)
+                local val = self:emit(patch[2])
+                expect(changes[ax[2]] == nil, "jit duplicate change axis!!!")
+                changes[ax[2]] = val
             end
-            return obj
+            val = self:change(val, ty, changes)
+            return val
         end
     }
     if tab[ast.tag] then
