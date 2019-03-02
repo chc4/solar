@@ -113,6 +113,22 @@ function test_change()
     }
 end
 
+function test_gate()
+    return ast.gate {
+        arg = ast.face { bind = "n", value = ast.val { value = 0 } },
+        body = ast.fetch { bind = "n" }
+    }
+end
+
+-- TODO: clean this up a lot. larking is general is very messy and all over the place.
+function test_call()
+    return ast.let {
+        bind = "a",
+        value = test_gate(),
+        rest = ast.call { value = ast.fetch { bind = "a" }, args = {ast.val { value = 1 }} }
+    }
+end
+
 function testcase_one()
     return ast.let {
         bind = "a",
@@ -155,7 +171,7 @@ end
 
 local input = io.open("test.sol","r"):read("*a")
 
-local tree = test_change()
+local tree = test_call()
 tree = ast.open(tree)
 
 local context_vase = types.vase(context.new(), types.face { bind = "solar", value = types.atom {value=0, aura = "z", example = 0} })
@@ -163,7 +179,7 @@ local ty = types.type_ast(context_vase,tree)
 print("RET TYPE")
 table.print(ty)
 
-local use_llvm = true
+local use_llvm = false
 if not use_llvm then
     local eval = rt.eval(context_vase, tree)
     table.print(eval)

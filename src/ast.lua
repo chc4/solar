@@ -14,6 +14,8 @@ ast.cons = make_ast("cons",{"left","right"})
 ast["in"] = make_ast("in",{"context","code"})
 ast["bump"] = make_ast("bump",{"atom"})
 ast["change"] = make_ast("change", {"value", "changes"}) -- changes are {"binding", ast}
+ast["gate"] = make_ast("gate", {"arg", "body"})
+ast["call"] = make_ast("call", {"value", "args"})
 
 function open_node(tag, members)
     return function(node)
@@ -32,21 +34,27 @@ function open_node(tag, members)
                 ret[k] = v
             end
         end
+        expect(ret.tag == tag)
         return ret
     end
 end
 
+function ast.lark(axis)
+    return ast.val { value = value.lark { axis = axis } }
+end
+
 
 function ast.open(node)
-    expect_type(node,"node","ast")
+    expect(node ~= nil, "node is nil")
     table.print(node)
+    expect_type(node,"node","ast")
     local tab = {
         ["let"] = function()
             -- `=/  a  1  .` becomes `=>  [a=1 .]  .`
             return ast["in"] {
                 context = ast.cons {
                     left = ast.face { bind = node.bind, value = ast.open(node.value) },
-                    right = ast.val { value = value.lark { axis = 1 } }
+                    right = ast.lark(1)
                 },
                 code = ast.open(node.rest)
             }
@@ -71,7 +79,56 @@ function ast.open(node)
             end
             return ast.change {
                 value = ast.open(node.value),
-                changes = changes
+                changes = changes,
+            }
+        end,
+        ["call"] = function()
+            -- we dont have to check that function calls typecheck here:
+            -- `changes` does core variance sample checking in general, not
+            -- specific to `call`.
+            --
+            -- `(f 1 2)` becomes --`=+  f(+< [1 2])  $:-`
+            -- `:*  p  q  [r]  ==`  becomes  `=+  q  %=(p:- r:+)`
+            local relative_changes = nil
+            for _,change in next,node.args do
+                expect_type(change, "change", "ast")
+                -- we have the function we're changing on the top of the context
+                -- and so need to change all the function arguments to use the "regular"
+                -- context instead. additionally, (f 1 2 3) is sugar for (f [1 [2 3]]).
+                change = ast["in"] { code = change, context = ast.lark(3) }
+                if relative_changes == nil then
+                    relative_changes = change
+                else
+                    relative_changes = ast.cons { left = change, right = relative_changes }
+                end
+            end
+            return ast.open(ast["in"] {
+                -- eval arm
+                code = ast.fetch { bind = "$" },
+                context =
+                ast["in"] {
+                    -- put copy of function on top of context, to change
+                    context = ast.cons {
+                        left = node.value,
+                        right = ast.lark(1)
+                    },
+                    -- change +< in - to out arguments
+                    code = ast.change {
+                        value = ast.lark(2),
+                        changes = {{4, relative_changes}}
+                    }
+                }
+            })
+        end,
+        ["gate"] = function()
+            return ast["in"] {
+                context = ast.cons {
+                    left = ast.open(node.arg),
+                    right = ast.val { value = value.lark { axis = 1 } }
+                },
+                code = ast.core {
+                    arms = {{"$", ast.open(node.body)}}
+                }
             }
         end
     }
@@ -79,7 +136,7 @@ function ast.open(node)
         error("cant open `"..node.tag.."`")
     end
     local at = tab[node.tag](node)
-    if table.equal(ast, at) then
+    if table.equal(node, at) then
         return at
     else
         --return ast.open(at)

@@ -15,13 +15,17 @@ function types.vase(v, t)
     return {type="vase",tag="vase",v=v,t=t}
 end
 
-function types.vase_go(name,vas)
-    expect(vas.type == "vase","vas isnt vase")
-    table.print(vas.v)
-    --expect(vas.v.type == "value","vas.v isnt value")
-    expect(vas.t.type == "types","vas.t isnt type")
-    -- nagivate faces?
-    return types.vase(vas.v[name],vas.t[name])
+function types.go(name,vas)
+    table.print(vas)
+    expect(vas.type == "vase" or vas.type == "types","vas isnt vase or type")
+    if vas.type == "vase" then
+        --expect(vas.v.type == "value","vas.v isnt value")
+        expect(vas.t.type == "types","vas.t isnt type")
+        -- nagivate faces?
+        return types.vase(vas.v[name],vas.t[name])
+    else
+        return vas[name]
+    end
 end
 
 function types.vase_cons(left,right)
@@ -29,6 +33,18 @@ function types.vase_cons(left,right)
     expect(left.v, "no left.v")
     expect(right.v, "no right.v")
     return types.vase(value.cell { left = left.v, right = right.v},c)
+end
+
+function axis_with_axis(a,b)
+    if b == 1 then
+        return a
+    elseif b == 2 then
+        return a*2
+    elseif b == 3 then
+        return (a*2)+1
+    else
+        return (b%2)+(axis_with_axis(a,math.floor(b/2))*2)
+    end
 end
 
 -- should probably be doing visitor pattern tbh
@@ -41,18 +57,56 @@ function types.axis_of(context,bind,axis)
     if bind == 1 then
         return {"face",axis,context}
     end
+    if type(bind) == "number" then
+        -- TODO: disallow larking into core contexts, variance testing
+        print(axis_with_axis(axis,bind))
+        return {"face",axis_with_axis(axis,bind),types.lark(context,bind)}
+    end
+
+    -- this is gross - basically want to test if it's in form "abc.def"
+    local multipart = bind:match("^(.+)%.(.+)$")
+    if multipart then
+        local val = nil
+        for node in bind:reverse():gmatch("[^\\.]+") do
+            local node = node:reverse()
+            if val == nil then
+                local ax = types.axis_of(context, node, axis)
+                expect(ax[1] == "face", "multipart path root not face")
+                val = ax[2]
+                context = ax[3]
+            else
+                -- this is not entirely how hoon does it:
+                -- `=<  test.a  ^=  a  |%  ++  test  1  --`     => 1
+                -- `=<  test.a  ^=  a  |%  ++  test  |.(1)  --` => <core>
+                -- `=<  $.test.a  ^=  a  |%  ++  test  |.(1)  --` => fail
+                -- `=<  $:test.a  ^=  a  |%  ++  test  |.(1)  --` => 1
+                -- seems like it lets you only eval up to one arm in a path?
+                -- idk wtf is going on here, ask someone later
+                -- do i need to support this? no one ever uses $.a instead of $:a
+                -- they *do* use +<.$, but forcing people to use `this` is better
+                -- i want to allow `..add`, maybe
+                local ax = types.axis_of(context, node, val)
+                expect(ax[1] == "face", "multipart path fragment `"..node.."` not face")
+                val = ax[2]
+                context = ax[3]
+            end
+        end
+        expect(val, "nil path in fetch?")
+        return {"face", val, context}
+    end
+
     if context.tag == "face" then
         if context.bind == bind then
-            return {"face",axis,context.value}
+            return {"face", axis, context.value}
         else
             return nil --types.axis_of(types.vase(context.v.value,context.t),bind,axis)
         end
     elseif context.tag == "cell" then
-        local r = types.axis_of(context.left,bind,axis*2)
+        local r = types.axis_of(context.left, bind, axis*2)
         if r then
             return r
         else
-            return types.axis_of(context.right,bind,axis*2+1)
+            return types.axis_of(context.right, bind, axis*2+1)
         end
     elseif context.tag == "fork" then
         local r = nil
@@ -79,6 +133,7 @@ function types.axis_of(context,bind,axis)
         return r
     elseif context.tag == "core" then
         -- TODO: allow indexing into core sample
+        table.print(context)
         local r = types.axis_of(context.context, bind, axis*2)
         if r then
             print("found "..bind.." in core context")
@@ -91,8 +146,9 @@ function types.axis_of(context,bind,axis)
                     arm = v
                 end
             end
+            expect(arm, "no arm "..bind.." in core")
             table.print(arm)
-            return {"core",arm[2],arm[3],axis,context}
+            return {"core", arm[2], arm[3], axis, context}
         end
     end
     table.print(context)
@@ -102,8 +158,15 @@ end
 
 -- this is where profunctor lenses would come in use
 -- TODO: do we want to allow axis changes? probably not?
-function types.change(obj,changes)
+function types.change(obj,changes,axis)
+    axis = axis or 1
     expect_type(obj, "obj", "types")
+
+    if changes[axis] then
+        --error("returning lark change")
+        return changes[axis]
+    end
+
     local tab = {
         ["face"] = function()
             table.print(obj)
@@ -112,7 +175,7 @@ function types.change(obj,changes)
                 changes[obj.bind] = nil
                 return v
             else
-                obj.value = types.change(obj.value, changes)
+                obj.value = types.change(obj.value, changes, xis)
                 return obj
             end
         end,
@@ -120,8 +183,40 @@ function types.change(obj,changes)
             return obj
         end,
         ["cell"] = function()
-            obj.left = types.change(obj.left, changes)
-            obj.right = types.change(obj.right, changes)
+            obj.left = types.change(obj.left, changes, axis*2)
+            obj.right = types.change(obj.right, changes, (axis*2)+1)
+            return obj
+        end,
+        ["core"] = function()
+            function position(a)
+                -- test is `a` is in the head or tail. 2 is head, 3 is tail.
+                if a == 2 then
+                    return 2
+                elseif a == 3 then
+                    return 3
+                elseif a == 0 or a == 1 then
+                    error("can't replace entire cores!")
+                else
+                    return position(math.floor(a/2))
+                end
+            end
+            -- TODO: variance
+            table.print(changes)
+            -- |=(a/@ a) has sample of a=0, (f 1) should keep face a=1.
+            -- wet gates will need electroplating/refacing - dry does nothing, can't even narrow
+            --[[
+            if obj.variance == "wet" then
+                for pos,change in next,changes do
+                    if type(pos) == "number" and position(pos) == 2 then
+                        --error("changing core context "..axis)
+                        obj.context = types.change(obj.context, changes, axis*2)
+                    else
+                        error("can't change in core battery!")
+                    end
+                end
+            end
+            ]]
+
             return obj
         end
     }
@@ -133,12 +228,20 @@ function types.change(obj,changes)
 end
 
 function types.lark(context,axis)
+    -- TODO: this needs to take either a vase or a type, since it's used for new contexts
+    -- in type_of and just indexing types in axis_of. ugly, rethink it.
+    -- TODO: core variance testing! here or somewhere else.
     if axis == 1 then
         return context
     elseif axis % 2 == 0 then
-        return types.vase_go("left",types.lark(context,axis/2))
+        if context.tag == "core" or (context.t and context.t.tag == "core") then
+            print("larking in core")
+            return types.go("context",types.lark(context,axis/2))
+        else
+            return types.go("left",types.lark(context,axis/2))
+        end
     else
-        return types.vase_go("right",types.lark(context,(axis-1)/2))
+        return types.go("right",types.lark(context,(axis-1)/2))
     end
 end
 
@@ -203,8 +306,6 @@ function types.type_ast(context,ast)
             if type(ast.value) == "number" then
                 return types.atom { value = ast.value, aura = "u", example = ast.value }
             elseif ast.value.tag == "lark" then
-                -- TODO: loses all type info!!!
-                -- context should be vase and fetch should use vase_go
                 return types.lark(context,ast.value.axis).t
             end
             table.print(ast.value)
@@ -240,6 +341,9 @@ function types.type_ast(context,ast)
             , ast.rest)
         end,
         ["fetch"] = function()
+            if type(ast.bind) == "number" then
+                return types.lark(context, ast.bind)
+            end
             local ax = types.axis_of(context.t,ast.bind)
             if not ax then
                 print("fetch "..ast.bind.." failed!")
