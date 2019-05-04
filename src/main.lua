@@ -179,7 +179,7 @@ local ty = types.type_ast(context_vase,tree)
 print("RET TYPE")
 table.print(ty)
 
-local use_llvm = false
+local use_llvm = true
 if not use_llvm then
     local eval = rt.eval(context_vase, tree)
     table.print(eval)

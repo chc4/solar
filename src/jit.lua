@@ -175,8 +175,14 @@ function jit:as_core(noun)
     return context, coil
 end
 
+--  build an intrinsic function, lark, for deep axis navigation
+function jit:call_lark(context, axis)
+    self.B:Call(self.lark, 1)
+end
 
-function jit:lark(context, axis)
+--  do i need this? will llvm do it intelligently?
+--  manually inline shallow lark calls.
+function jit:inline_lark(context, axis)
     if axis == 1 then
         table.print(context)
         return context
@@ -193,6 +199,7 @@ function jit:lark(context, axis)
         return self:lark(right, (axis - 1) / 2)
     end
 end
+jit.lark = jit.inline_lark -- temporary
 
 -- TODO: make this a runtime function instead of compile time emitting navigation?
 -- test to see how bloated it makes binaries
@@ -209,6 +216,16 @@ function jit:change(context, ty, changes, axis)
             context = self:make_noun("cell", l, r)
         end
         return context, (flag or flag2)
+    elseif ty.tag == "core" then
+        -- we should be catching battery changes at compile time -
+        -- even if we somehow get some, don't even try changing it
+        local left,right = self:as_cell(context)
+        local l,flag = self:change(left, ty.context, changes, axis * 2)
+        if flag then
+            -- TODO: make this a core
+            context = self:make_noun("cell", l, right)
+        end
+        return context, flag
     else
         return context,false
     end
@@ -434,6 +451,9 @@ function jit:emit(ast)
         ["change"] = function()
             local val = self:emit(ast.value)
             -- TODO: reference counting!
+            print("what")
+            table.print(self.context)
+            table.print(ast.value)
             local ty = types.type_ast(self.context, ast.value)
             local changes = {}
             for _,patch in next,ast.changes do
@@ -505,7 +525,7 @@ function jit:print(noun,noun_ty)
         ["core"] = function()
             table.print(noun)
             local core_str = "<"
-            for i,v in next,noun.t.arms do
+            for i,v in next,noun_ty.arms do
                 core_str = core_str..i
             end
             core_str = core_str..">"
