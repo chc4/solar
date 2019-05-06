@@ -115,17 +115,20 @@ end
 
 function test_gate()
     return ast.gate {
-        arg = ast.face { bind = "n", value = ast.val { value = 0 } },
-        body = ast.fetch { bind = "n" }
+        arg = ast.cons {
+            left = ast.face { bind = "a", value = ast.val { value = 0 } },
+            right = ast.face { bind = "b", value = ast.val { value = 0 } },
+        },
+        body = ast.cons { left = ast.fetch { bind = "b" }, right = ast.fetch { bind = "a" } }
     }
 end
 
 -- TODO: clean this up a lot. larking is general is very messy and all over the place.
 function test_call()
     return ast.let {
-        bind = "a",
+        bind = "f",
         value = test_gate(),
-        rest = ast.call { value = ast.fetch { bind = "a" }, args = {ast.val { value = 1 }} }
+        rest = ast.call { value = ast.fetch { bind = "f" }, args = {ast.val { value = 1 }, ast.val { value = 2} }}
     }
 end
 
@@ -179,7 +182,7 @@ local ty = types.type_ast(context_vase,tree)
 print("RET TYPE")
 table.print(ty)
 
-local use_llvm = true
+local use_llvm = arg and arg[1] == "--llvm" or false
 if not use_llvm then
     local eval = rt.eval(context_vase, tree)
     table.print(eval)

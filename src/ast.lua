@@ -89,19 +89,20 @@ function ast.open(node)
             --
             -- `(f 1 2)` becomes --`=+  f(+< [1 2])  $:-`
             -- `:*  p  q  [r]  ==`  becomes  `=+  q  %=(p:- r:+)`
-            local relative_changes = nil
-            for _,change in next,node.args do
-                expect_type(change, "change", "ast")
+            function build_changes(index)
+                local i,change = next(node.args, index)
                 -- we have the function we're changing on the top of the context
                 -- and so need to change all the function arguments to use the "regular"
                 -- context instead. additionally, (f 1 2 3) is sugar for (f [1 [2 3]]).
                 change = ast["in"] { code = change, context = ast.lark(3) }
-                if relative_changes == nil then
-                    relative_changes = change
+                if next(node.args, i) then
+                    return ast.cons { left = change, right = build_changes(i) }
                 else
-                    relative_changes = ast.cons { left = change, right = relative_changes }
+                    return change
                 end
             end
+            local relative_changes = build_changes()
+            table.print(relative_changes)
             return ast.open(ast["in"] {
                 -- eval arm
                 code = ast.fetch { bind = "$" },

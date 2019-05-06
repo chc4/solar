@@ -188,15 +188,14 @@ function jit:inline_lark(context, axis)
         return context
     elseif axis % 2 == 0 then
         print("go left")
-        table.print(context)
-        local left, right = self:as_cell(context)
-        print("went left")
-        return self:lark(left, axis / 2)
+        local c = self:lark(context, axis / 2)
+        local left, right = self:as_cell(c)
+        return left
     else
         print("go right")
-        local left, right = self:as_cell(context)
-        print("went right")
-        return self:lark(right, (axis - 1) / 2)
+        local c = self:lark(context, (axis-1) / 2)
+        local left, right = self:as_cell(c)
+        return right
     end
 end
 jit.lark = jit.inline_lark -- temporary
@@ -377,8 +376,9 @@ function jit:emit(ast)
             error()
         end,
         ["in"] = function()
+            local old = self.context
             local c = self:emit(ast.context)
-            self.context = types.vase(c, types.type_ast(self.context, ast.context))
+            self.context = types.vase(c, types.type_ast(old, ast.context))
             return self:emit(ast.code)
         end,
         ["face"] = function()
